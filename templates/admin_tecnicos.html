@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Técnicos</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <style>
+
+        .lista-tecnicos {
+            margin-top: 25px;
+        }
+
+        .tecnico {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            padding: 16px 0;
+
+            border-bottom: 1px solid #eee;
+        }
+
+        .datos-tecnico {
+            flex: 1;
+        }
+
+        .datos-tecnico h3 {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .datos-tecnico p {
+            color: #777;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+
+        .estado {
+            display: inline-block;
+
+            margin-top: 5px;
+
+            padding: 4px 9px;
+
+            border-radius: 20px;
+
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .activo {
+            background: #e6f7eb;
+            color: #187a35;
+        }
+
+        .inactivo {
+            background: #eee;
+            color: #777;
+        }
+
+        .boton-editar {
+            text-decoration: none;
+
+            background: #111;
+            color: white;
+
+            padding: 9px 15px;
+
+            border-radius: 7px;
+
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+
+        .boton-editar:hover {
+            background: #333;
+        }
+
+        @media(max-width: 600px) {
+
+            .tecnico {
+                gap: 15px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <div class="logo">
+
+            <img
+                src="/static/img/logo.png"
+                alt="Logo de la empresa"
+            >
+
+        </div>
+
+
+        <div class="bienvenida">
+
+            <h1>Editar técnicos</h1>
+
+            <p>
+                Selecciona la persona que deseas modificar.
+            </p>
+
+        </div>
+
+
+        <div class="lista-tecnicos">
+
+            {% for tecnico in tecnicos %}
+
+                <div class="tecnico">
+
+                    <div class="datos-tecnico">
+
+                        <h3>
+                            {{ tecnico["nombre"] }}
+                        </h3>
+
+                        <p>
+                            Credencial:
+                            {{ tecnico["credencial"] }}
+                        </p>
+
+                        <p>
+                            {{ tecnico["correo"] }}
+                        </p>
+
+
+                        {% if tecnico["activo"] == 1 %}
+
+                            <span class="estado activo">
+                                ACTIVO
+                            </span>
+
+                        {% else %}
+
+                            <span class="estado inactivo">
+                                INACTIVO
+                            </span>
+
+                        {% endif %}
+
+                    </div>
+
+
+                    <div class="acciones-tecnico">
+
+                    <a
+                        href="/admin/editar/{{ tecnico['id'] }}"
+                        class="boton-editar"
+                    >
+                        Editar
+                    </a>
+
+                    <a
+                        href="/admin/eliminar/{{ tecnico['id'] }}"
+                        class="boton-eliminar"
+                    >
+                        Eliminar
+                    </a>
+
+                </div>
+
+                </div>
+
+            {% else %}
+
+                <p style="
+                    text-align:center;
+                    color:#999;
+                    margin:30px 0;
+                ">
+                    No hay técnicos registrados.
+                </p>
+
+            {% endfor %}
+
+        </div>
+
+
+        <div style="
+            text-align:center;
+            margin-top:25px;
+        ">
+
+            <a
+                href="/admin/panel"
+                style="color:#666;"
+            >
+                ← Volver al panel
+            </a>
+
+        </div>
+
+    </div>
+
+</main>
+
+</body>
+</html>

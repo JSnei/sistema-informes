@@ -1,0 +1,565 @@
+/* =========================
+   CONFIGURACIÓN GENERAL
+   ========================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+
+    background: #f4f6f8;
+    color: #222;
+
+    min-height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+}
+
+
+/* =========================
+   CONTENEDOR
+   ========================= */
+
+.contenedor {
+    width: 100%;
+    max-width: 520px;
+}
+
+
+/* =========================
+   TARJETA
+   ========================= */
+
+.tarjeta {
+    width: 100%;
+
+    background: white;
+
+    border-radius: 16px;
+
+    padding: 35px;
+
+    box-shadow:
+        0 4px 10px rgba(0, 0, 0, 0.05),
+        0 15px 35px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================
+   LOGO
+   ========================= */
+
+.logo {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.logo img {
+    width: 260px;
+    max-width: 100%;
+    height: auto;
+
+    display: block;
+
+    margin: 0 auto;
+}
+
+
+/* =========================
+   BIENVENIDA / TÍTULOS
+   ========================= */
+
+.bienvenida {
+    text-align: center;
+
+    margin-bottom: 35px;
+}
+
+.bienvenida h1 {
+    font-size: 27px;
+
+    margin-bottom: 10px;
+}
+
+.bienvenida p {
+    color: #666;
+
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+
+/* =========================
+   GRUPOS DEL FORMULARIO
+   ========================= */
+
+.grupo {
+    width: 100%;
+
+    margin-bottom: 22px;
+}
+
+
+/* =========================
+   LABELS
+   ========================= */
+
+label {
+    display: block;
+
+    font-size: 14px;
+    font-weight: bold;
+
+    margin-bottom: 8px;
+}
+
+.obligatorio {
+    color: #d60000;
+}
+
+
+/* =========================
+   INPUTS
+   ========================= */
+
+input {
+    display: block;
+
+    width: 100%;
+
+    padding: 13px 14px;
+
+    border: 1px solid #ccc;
+    border-radius: 8px;
+
+    background: white;
+    color: #222;
+
+    font-family: inherit;
+    font-size: 15px;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+input:focus {
+    outline: none;
+
+    border-color: #222;
+
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+input::placeholder {
+    color: #999;
+}
+
+
+/* =========================
+   INPUTS DESHABILITADOS
+   ========================= */
+
+input:disabled {
+    background: #f5f5f5;
+
+    color: #555;
+
+    cursor: not-allowed;
+}
+
+
+/* =========================
+   SELECT
+   ========================= */
+
+select {
+    display: block;
+
+    width: 100%;
+
+    padding: 13px 14px;
+
+    border: 1px solid #ccc;
+    border-radius: 8px;
+
+    background: white;
+    color: #222;
+
+    font-family: inherit;
+    font-size: 15px;
+
+    cursor: pointer;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+select:focus {
+    outline: none;
+
+    border-color: #222;
+
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+
+/* =========================
+   TEXTAREA
+   ========================= */
+
+textarea {
+    display: block;
+
+    width: 100%;
+    min-height: 120px;
+
+    padding: 13px 14px;
+
+    border: 1px solid #ccc;
+    border-radius: 8px;
+
+    background: white;
+    color: #222;
+
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.5;
+
+    resize: vertical;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+textarea:focus {
+    outline: none;
+
+    border-color: #222;
+
+    box-shadow:
+        0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+textarea::placeholder {
+    color: #999;
+}
+
+
+/* =========================
+   BOTONES
+   ========================= */
+
+.boton {
+    display: block;
+
+    width: 100%;
+
+    padding: 14px;
+
+    margin-top: 8px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: #111;
+    color: white;
+
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: bold;
+
+    text-align: center;
+    text-decoration: none;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.1s ease;
+}
+
+.boton:hover {
+    background: #333;
+}
+
+.boton:active {
+    transform: scale(0.99);
+}
+
+
+/* =========================
+   BOTÓN ELIMINAR
+   ========================= */
+
+.boton-eliminar,
+.boton-eliminar-confirmar {
+    background: #b42318;
+}
+
+.boton-eliminar:hover,
+.boton-eliminar-confirmar:hover {
+    background: #8f1d14;
+}
+
+
+/* =========================
+   ENLACE CANCELAR / VOLVER
+   ========================= */
+
+.cancelar {
+    display: block;
+
+    margin-top: 20px;
+
+    text-align: center;
+
+    color: #666;
+
+    font-size: 14px;
+
+    text-decoration: underline;
+
+    cursor: pointer;
+}
+
+.cancelar:hover {
+    color: #111;
+}
+
+
+/* =========================
+   MENSAJE DE ERROR
+   ========================= */
+
+.mensaje-error {
+    width: 100%;
+
+    background: #fff1f0;
+    color: #b42318;
+
+    border: 1px solid #f4c7c3;
+    border-radius: 8px;
+
+    padding: 12px 14px;
+
+    margin-bottom: 18px;
+
+    font-size: 14px;
+    line-height: 1.4;
+
+    text-align: center;
+}
+
+
+/* =========================
+   RECORDATORIO DE FOTOS
+   ========================= */
+
+.recordatorio-fotos {
+    width: 100%;
+
+    text-align: center;
+
+    color: #666;
+
+    font-size: 14px;
+    line-height: 1.5;
+
+    margin-top: 10px;
+    margin-bottom: 22px;
+
+    padding: 5px 10px;
+}
+
+
+/* =========================
+   LISTA DE TÉCNICOS
+   ========================= */
+
+.tecnico {
+    width: 100%;
+
+    padding: 18px 0;
+
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.tecnico:last-child {
+    border-bottom: none;
+}
+
+.tecnico strong {
+    display: block;
+
+    margin-bottom: 5px;
+
+    font-size: 16px;
+}
+
+.tecnico span {
+    color: #666;
+
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+
+/* =========================
+   ESTADOS
+   ========================= */
+
+.estado {
+    display: inline-block;
+
+    margin-top: 7px;
+
+    padding: 5px 9px;
+
+    border-radius: 20px;
+
+    font-size: 11px;
+    font-weight: bold;
+
+    text-transform: uppercase;
+}
+
+.activo {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.inactivo {
+    background: #eeeeee;
+    color: #666;
+}
+
+
+/* =========================
+   ADVERTENCIA ELIMINAR
+   ========================= */
+
+.advertencia {
+    text-align: center;
+
+    margin-bottom: 25px;
+}
+
+.advertencia h2 {
+    font-size: 25px;
+
+    margin-bottom: 10px;
+}
+
+.advertencia p {
+    color: #666;
+
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+
+/* =========================
+   TÉCNICO A ELIMINAR
+   ========================= */
+
+.tecnico-eliminar {
+    width: 100%;
+
+    background: #f7f7f7;
+
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+
+    padding: 18px;
+
+    margin-bottom: 20px;
+}
+
+.tecnico-eliminar strong {
+    display: block;
+
+    margin-bottom: 8px;
+
+    font-size: 17px;
+}
+
+.tecnico-eliminar span {
+    color: #666;
+
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+
+/* =========================
+   FOOTER
+   ========================= */
+
+.footer {
+    text-align: center;
+
+    margin-top: 20px;
+
+    color: #999;
+
+    font-size: 12px;
+}
+
+
+/* =========================
+   CELULARES
+   ========================= */
+
+@media (max-width: 600px) {
+
+    body {
+        align-items: flex-start;
+
+        padding: 20px 12px;
+    }
+
+    .contenedor {
+        max-width: 100%;
+    }
+
+    .tarjeta {
+        padding: 25px 20px;
+
+        border-radius: 14px;
+    }
+
+    .logo img {
+        width: 220px;
+    }
+
+    .bienvenida {
+        margin-bottom: 28px;
+    }
+
+    .bienvenida h1 {
+        font-size: 24px;
+    }
+
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    textarea {
+        min-height: 120px;
+    }
+}

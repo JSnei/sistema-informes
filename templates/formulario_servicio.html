@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Informe de servicio</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+
+<script>
+
+function contarPalabras() {
+
+    const campo = document.getElementById("trabajo_realizado");
+    const contador = document.getElementById("contador-palabras");
+
+    const texto = campo.value.trim();
+
+    let cantidad = 0;
+
+    if (texto !== "") {
+        cantidad = texto.split(/\s+/).length;
+    }
+
+    contador.textContent = cantidad + " / 25 palabras mínimo";
+
+    if (cantidad >= 25) {
+        contador.classList.add("completo");
+        campo.setCustomValidity("");
+    } else {
+        contador.classList.remove("completo");
+
+        campo.setCustomValidity(
+            "Debes escribir mínimo 25 palabras en Trabajo realizado."
+        );
+    }
+}
+
+
+/* Validar desde que carga la página */
+contarPalabras();
+
+</script>
+
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <div class="logo">
+            <img src="/static/img/logo.png" alt="Logo de la empresa">
+        </div>
+
+        <div class="bienvenida">
+            <h1>Hola, {{ tecnico["nombre"] }}</h1>
+            <p>
+                Registra la información del servicio realizado.
+            </p>
+        </div>
+
+
+        <form action="/generar-mensaje" method="POST">
+
+            <!-- DATOS AUTOMÁTICOS -->
+
+            <input
+                type="hidden"
+                name="id_tecnico"
+                value="{{ tecnico['id'] }}"
+            >
+
+            <input
+                type="hidden"
+                name="fecha"
+                value="{{ fecha }}"
+            >
+
+
+            <div class="grupo">
+                <label>Fecha del servicio</label>
+
+                <input
+                    type="date"
+                    value="{{ fecha }}"
+                    disabled
+                >
+            </div>
+
+
+            <div class="grupo">
+                <label>Técnico</label>
+
+                <input
+                    type="text"
+                    value="{{ tecnico['nombre'] }}"
+                    disabled
+                >
+            </div>
+
+
+            <div class="grupo">
+                <label>Credencial</label>
+
+                <input
+                    type="text"
+                    value="{{ tecnico['credencial'] }}"
+                    disabled
+                >
+            </div>
+
+
+            <div class="grupo">
+                <label>Perfil</label>
+
+                <input
+                    type="text"
+                    value="{{ tecnico['rol']|capitalize }}"
+                    disabled
+                >
+            </div>
+
+
+            <!-- EQUIPO -->
+
+            <div class="grupo">
+                <label for="equipo">
+                    Equipo
+                    <span class="obligatorio">*</span>
+                </label>
+
+                <input
+                    type="text"
+                    id="equipo"
+                    name="equipo"
+                    placeholder="Ej. Mantemiento sistema de bombeo"
+                    required
+                >
+            </div>
+
+
+            <!-- TRABAJO REALIZADO -->
+
+            <div class="grupo">
+
+            <label for="trabajo_realizado">
+                Trabajo realizado
+                <span class="obligatorio">*</span>
+            </label>
+
+            <textarea
+                id="trabajo_realizado"
+                name="trabajo_realizado"
+                rows="5"
+                placeholder="Describe detalladamente el trabajo realizado..."
+                required
+                oninput="contarPalabras()"
+            ></textarea>
+
+            <p id="contador-palabras" class="contador-palabras">
+                0 / 25 palabras mínimo
+            </p>
+
+            </div>
+
+
+            <!-- OBSERVACIONES -->
+
+            <div class="grupo">
+                <label for="observaciones">
+                    Observaciones
+                </label>
+
+                <textarea
+                    id="observaciones"
+                    name="observaciones"
+                    rows="4"
+                    placeholder="Escribe las observaciones del servicio..."
+                ></textarea>
+            </div>
+
+
+            <!-- RECOMENDACIONES -->
+
+            <div class="grupo">
+                <label for="recomendaciones">
+                    Recomendaciones
+                </label>
+
+                <textarea
+                    id="recomendaciones"
+                    name="recomendaciones"
+                    rows="4"
+                    placeholder="Escribe las recomendaciones..."
+                ></textarea>
+            </div>
+
+
+            <!-- FOTOS -->
+
+            <div class="recordatorio-fotos">
+            Recuerda tomar mínimo 3 fotografías del servicio.
+            Las adjuntarás en WhatsApp junto con el reporte.
+            </div>
+
+
+            <button type="submit" class="boton">
+                Generar reporte
+            </button>
+
+        </form>
+
+    </div>
+
+</main>
+
+</body>
+</html>

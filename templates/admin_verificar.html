@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Verificar acceso</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <div class="logo">
+                <img src="/static/img/logo.png" alt="Logo de la empresa">
+            </div>
+
+            <div class="bienvenida">
+
+                <h1>Verificación</h1>
+
+                <p>
+                    Hemos enviado un código de seguridad
+                    al correo del administrador.
+                </p>
+
+            </div>
+
+            <form action="/admin/verificar-codigo" method="POST">
+
+                <div class="grupo">
+
+                    <label for="codigo">
+                        Código de seguridad
+                    </label>
+
+                    <input
+                        type="text"
+                        id="codigo"
+                        name="codigo"
+                        maxlength="6"
+                        inputmode="numeric"
+                        pattern="[0-9]{6}"
+                        placeholder="000000"
+                        autocomplete="one-time-code"
+                        required
+                        autofocus
+                    >
+
+                </div>
+
+                <button type="submit" class="boton">
+                    Verificar código
+                </button>
+
+            </form>
+
+        </div>
+
+        <div class="footer">
+            Acceso exclusivo para administradores
+        </div>
+
+    </main>
+
+</body>
+
+</html>

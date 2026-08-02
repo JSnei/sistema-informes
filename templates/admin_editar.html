@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Editar técnico</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <div class="logo">
+            <img src="/static/img/logo.png" alt="Logo de la empresa">
+        </div>
+
+        <div class="bienvenida">
+
+            <h1>Editar técnico</h1>
+
+            <p>
+                Modifica la información de
+                {{ tecnico["nombre"] }}.
+            </p>
+
+        </div>
+
+
+        <form
+            action="/admin/editar/{{ tecnico['id'] }}"
+            method="POST"
+        >
+
+            <!-- CREDENCIAL -->
+
+            <div class="grupo">
+
+                <label for="credencial">
+                    Número de credencial
+                </label>
+
+                <input
+                    type="text"
+                    id="credencial"
+                    name="credencial"
+                    value="{{ tecnico['credencial'] }}"
+                    required
+                >
+
+            </div>
+
+
+            <!-- NOMBRE -->
+
+            <div class="grupo">
+
+                <label for="nombre">
+                    Nombre completo
+                </label>
+
+                <input
+                    type="text"
+                    id="nombre"
+                    name="nombre"
+                    value="{{ tecnico['nombre'] }}"
+                    required
+                >
+
+            </div>
+
+
+            <!-- CORREO -->
+
+            <div class="grupo">
+
+                <label for="correo">
+                    Correo electrónico
+                </label>
+
+                <input
+                    type="email"
+                    id="correo"
+                    name="correo"
+                    value="{{ tecnico['correo'] }}"
+                    required
+                >
+
+            </div>
+
+
+            <!-- PERFIL -->
+
+            <div class="grupo">
+
+                <label for="rol">
+                    Perfil del técnico
+                </label>
+
+                <select
+                    id="rol"
+                    name="rol"
+                    required
+                >
+
+                    <option
+                        value="locativo"
+                        {% if tecnico["rol"] == "locativo" %}
+                            selected
+                        {% endif %}
+                    >
+                        Locativo
+                    </option>
+
+                    <option
+                        value="electromecanico"
+                        {% if tecnico["rol"] == "electromecanico" %}
+                            selected
+                        {% endif %}
+                    >
+                        Electromecánico
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <button type="submit" class="boton">
+                Guardar cambios
+            </button>
+
+        </form>
+
+
+        <!-- ACTIVAR / DESACTIVAR -->
+
+        <form
+            action="/admin/estado/{{ tecnico['id'] }}"
+            method="POST"
+            style="margin-top: 12px;"
+        >
+
+            {% if tecnico["activo"] == 1 %}
+
+                <button
+                    type="submit"
+                    class="boton"
+                    style="background: #b42318;"
+                >
+                    Desactivar técnico
+                </button>
+
+            {% else %}
+
+                <button
+                    type="submit"
+                    class="boton"
+                >
+                    Activar técnico
+                </button>
+
+            {% endif %}
+
+        </form>
+
+
+        <div style="text-align:center; margin-top:20px;">
+
+            <a
+                href="/admin/tecnicos"
+                style="color:#666;"
+            >
+                ← Volver a técnicos
+            </a>
+
+        </div>
+
+    </div>
+
+</main>
+
+</body>
+
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Administración | Sistema de Informes</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <div class="logo">
+                <img src="/static/img/logo.png" alt="Logo de la empresa">
+            </div>
+
+            <div class="bienvenida">
+
+                <h1>Administración</h1>
+
+                <p>
+                    Esta sección está restringida.
+                    Para continuar, verifica tu identidad.
+                </p>
+
+            </div>
+
+            <form action="/admin/enviar-codigo" method="POST">
+
+                <button type="submit" class="boton">
+                    Enviar código de acceso
+                </button>
+
+            </form>
+
+            <div class="footer">
+                Acceso exclusivo para administradores
+            </div>
+
+        </div>
+
+    </main>
+
+</body>
+</html>

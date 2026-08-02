@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Agregar técnico</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <div class="logo">
+            <img src="/static/img/logo.png" alt="Logo de la empresa">
+        </div>
+
+        <div class="bienvenida">
+
+            <h1>Agregar técnico</h1>
+
+            <p>
+                Ingresa los datos del técnico que deseas
+                registrar en el sistema.
+            </p>
+
+        </div>
+
+        <form action="/admin/agregar-tecnico" method="POST">
+
+            <div class="grupo">
+
+                <label for="credencial">
+                    Número de credencial
+                </label>
+
+                <input
+                    type="text"
+                    id="credencial"
+                    name="credencial"
+                    placeholder="Ej. 1028"
+                    required
+                >
+
+            </div>
+
+            <div class="grupo">
+
+                <label for="nombre">
+                    Nombre completo
+                </label>
+
+                <input
+                    type="text"
+                    id="nombre"
+                    name="nombre"
+                    placeholder="Nombre del técnico"
+                    required
+                >
+
+            </div>
+
+            <div class="grupo">
+
+                <label for="correo">
+                    Correo electrónico
+                </label>
+
+                <input
+                    type="email"
+                    id="correo"
+                    name="correo"
+                    placeholder="correo@empresa.com"
+                    required
+                >
+
+            </div>
+
+            <div class="grupo">
+
+            <label for="rol">
+                Perfil del técnico
+            </label>
+
+            <select
+                id="rol"
+                name="rol"
+                required
+            >
+                <option value="" disabled selected>
+                    Seleccione un perfil
+                </option>
+
+                <option value="locativo">
+                    Locativo
+                </option>
+
+                <option value="electromecanico">
+                    Electromecánico
+                </option>
+
+            </select>
+
+        </div>
+
+            <button type="submit" class="boton">
+                Agregar técnico
+            </button>
+
+        </form>
+
+        <div style="text-align:center; margin-top:20px;">
+
+            <a href="/admin/panel" style="color:#666;">
+                ← Volver al panel
+            </a>
+
+        </div>
+
+    </div>
+
+</main>
+
+</body>
+</html>

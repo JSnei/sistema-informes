@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Eliminar técnico</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <!-- LOGO -->
+
+        <div class="logo">
+            <img
+                src="/static/img/logo.png"
+                alt="Logo de la empresa"
+            >
+        </div>
+
+
+        <!-- ADVERTENCIA -->
+
+        <div class="advertencia">
+
+            <h2>¿Estás seguro?</h2>
+
+            <p>
+                Estás a punto de eliminar permanentemente
+                este técnico del sistema.
+            </p>
+
+        </div>
+
+
+        <!-- DATOS DEL TÉCNICO -->
+
+        <div class="tecnico-eliminar">
+
+            <strong>
+                {{ tecnico["nombre"] }}
+            </strong>
+
+            <span>
+                Credencial: {{ tecnico["credencial"] }}
+            </span>
+
+            <br>
+
+            <span>
+                {{ tecnico["correo"] }}
+            </span>
+
+        </div>
+
+
+        <!-- CONFIRMAR ELIMINACIÓN -->
+
+        <form
+            action="/admin/eliminar/{{ tecnico['id'] }}"
+            method="POST"
+        >
+
+            <button
+                type="submit"
+                class="boton boton-eliminar-confirmar"
+            >
+                Sí, eliminar técnico
+            </button>
+
+        </form>
+
+
+        <!-- CANCELAR -->
+
+        <a
+            href="/admin/tecnicos"
+            class="cancelar"
+        >
+            No, cancelar
+        </a>
+
+    </div>
+
+</main>
+
+</body>
+
+</html>

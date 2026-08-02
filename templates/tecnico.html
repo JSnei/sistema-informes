@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Informe de servicio</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/style.css"
+    >
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <!-- LOGO DE LA EMPRESA -->
+
+            <div class="logo">
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+            </div>
+
+
+            <!-- MENSAJE DE BIENVENIDA -->
+
+            <div class="bienvenida">
+
+                <h1>Bienvenido</h1>
+
+                <p>
+                    Ingresa tu número de credencial y la fecha
+                    del servicio para comenzar el informe.
+                </p>
+
+            </div>
+
+
+            <!-- FORMULARIO -->
+
+            <form
+                action="/iniciar-servicio"
+                method="POST"
+            >
+
+                <!-- CREDENCIAL -->
+
+                <div class="grupo">
+
+                    <label for="credencial">
+                        Número de credencial del técnico
+                        <span class="obligatorio">*</span>
+                    </label>
+
+                    <input
+                        type="text"
+                        id="credencial"
+                        name="credencial"
+                        placeholder="Ej. 1024"
+                        autocomplete="off"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- FECHA -->
+
+                <div class="grupo">
+
+                    <label for="fecha">
+                        Fecha del servicio
+                        <span class="obligatorio">*</span>
+                    </label>
+
+                    <input
+                        type="date"
+                        id="fecha"
+                        name="fecha"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- MENSAJE DE ERROR -->
+
+                {% if error %}
+
+                    <div class="mensaje-error">
+                        {{ error }}
+                    </div>
+
+                {% endif %}
+
+
+                <!-- BOTÓN -->
+
+                <button
+                    type="submit"
+                    class="boton"
+                >
+                    Continuar
+                </button>
+
+            </form>
+
+
+            <!-- FOOTER -->
+
+            <div class="footer">
+                Sistema de informes de servicio
+            </div>
+
+        </div>
+
+    </main>
+
+</body>
+
+</html>
