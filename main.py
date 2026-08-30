@@ -1058,6 +1058,7 @@ def guardar_servicio_externo(
 
     ticket: str = Form(...),
     tipo_servicio: str = Form(...),
+    otro_tipo_servicio: str = Form(""),
 
     cedula_tecnico: str = Form(...),
     nombre_tecnico: str = Form(...),
@@ -1107,6 +1108,25 @@ def guardar_servicio_externo(
             },
             status_code=403
         )
+
+    # Si seleccionó OTRO, usar el servicio escrito por el técnico
+    if tipo_servicio == "OTRO":
+
+        otro_tipo_servicio = otro_tipo_servicio.strip()
+
+        if not otro_tipo_servicio:
+            return templates.TemplateResponse(
+                request=request,
+                name="externo/formulario.html",
+                context={
+                    "error":
+                    "Debes indicar cuál es el tipo de servicio.",
+                    "enlace": enlace
+                },
+                status_code=400
+            )
+
+        tipo_servicio = otro_tipo_servicio
 
     try:
 

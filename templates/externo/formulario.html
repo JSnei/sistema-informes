@@ -99,6 +99,35 @@
 </head>
 
 
+<script>
+    function mostrarOtroServicio() {
+
+        const tipoServicio =
+            document.getElementById("tipo_servicio");
+
+        const campoOtro =
+            document.getElementById("campo_otro_servicio");
+
+        const otroServicio =
+            document.getElementById("otro_tipo_servicio");
+
+
+        if (tipoServicio.value === "OTRO") {
+
+            campoOtro.style.display = "block";
+            otroServicio.required = true;
+
+        } else {
+
+            campoOtro.style.display = "none";
+            otroServicio.required = false;
+            otroServicio.value = "";
+
+        }
+    }
+</script>
+
+
 <body>
 
     <main class="contenedor">
@@ -223,6 +252,7 @@
                             id="tipo_servicio"
                             name="tipo_servicio"
                             required
+                            onchange="mostrarOtroServicio()"
                         >
 
                             <option value="">
@@ -237,21 +267,36 @@
                                 Mantenimiento correctivo
                             </option>
 
-                            <option value="EMERGENCIA">
-                                Atención de emergencia
-                            </option>
-
-                            <option value="INSTALACION">
-                                Instalación
-                            </option>
-
                             <option value="OTRO">
                                 Otro
                             </option>
 
-                        </select>
+                            </select>
 
-                    </div>
+                        </div>
+
+
+                        <!-- TIPO DE SERVICIO: OTRO -->
+
+                        <div
+                            class="campo"
+                            id="campo_otro_servicio"
+                            style="display: none;"
+                        >
+
+                            <label for="otro_tipo_servicio">
+                                ¿Cuál servicio? *
+                            </label>
+
+                            <input
+                                type="text"
+                                id="otro_tipo_servicio"
+                                name="otro_tipo_servicio"
+                                placeholder="Escribe el tipo de servicio"
+                                maxlength="100"
+                            >
+
+                        </div>
 
                 </div>
 
