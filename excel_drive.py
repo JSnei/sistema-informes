@@ -219,3 +219,29 @@ def sincronizar_excel_drive():
         "accion": "creado",
         "archivo_id": creado["id"]
     }
+
+
+# ==========================================================
+# SINCRONIZACIÓN SEGURA
+# ==========================================================
+
+def sincronizar_excel_seguro():
+
+    try:
+        resultado = sincronizar_excel_drive()
+
+        print(
+            f"Excel Drive sincronizado: "
+            f"{resultado['accion']}"
+        )
+
+        return True
+
+    except Exception as error:
+
+        print(
+            f"ADVERTENCIA: No se pudo sincronizar "
+            f"Servicios.xlsx con Google Drive: {error}"
+        )
+
+        return False

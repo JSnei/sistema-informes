@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from correo import enviar_codigo
+from excel_drive import sincronizar_excel_seguro
 from database.database import (
     crear_base_datos,
     obtener_tecnicos,
@@ -483,7 +484,12 @@ def anular_servicio_real_admin(
     servicio_id: int
 ):
     try:
+        # Anular primero en PostgreSQL
         anular_servicio_real(servicio_id)
+
+        # Actualizar automáticamente Servicios.xlsx en Google Drive
+        # Si Drive falla, la anulación en PostgreSQL se conserva.
+        sincronizar_excel_seguro()
 
     except ValueError as e:
 
@@ -1075,7 +1081,10 @@ def guardar_servicio_externo(
     repuestos_suministrados: str = Form("")
 ):
 
-    # Verificar el enlace antes de guardar
+    # ==========================================================
+    # 1. VERIFICAR EL ENLACE
+    # ==========================================================
+
     enlace = obtener_enlace_externo(token)
 
     if enlace is None:
@@ -1098,7 +1107,10 @@ def guardar_servicio_externo(
             status_code=403
         )
 
-    # Impedir guardar servicios con enlaces de más de 24 horas
+    # ==========================================================
+    # 2. VERIFICAR VENCIMIENTO DEL ENLACE
+    # ==========================================================
+
     if enlace_externo_vencido(enlace):
         return templates.TemplateResponse(
             request=request,
@@ -1109,7 +1121,10 @@ def guardar_servicio_externo(
             status_code=403
         )
 
-    # Si seleccionó OTRO, usar el servicio escrito por el técnico
+    # ==========================================================
+    # 3. TIPO DE SERVICIO
+    # ==========================================================
+
     if tipo_servicio == "OTRO":
 
         otro_tipo_servicio = otro_tipo_servicio.strip()
@@ -1119,14 +1134,17 @@ def guardar_servicio_externo(
                 request=request,
                 name="externo/formulario.html",
                 context={
-                    "error":
-                    "Debes indicar cuál es el tipo de servicio.",
+                    "error": "Debes indicar cuál es el tipo de servicio.",
                     "enlace": enlace
                 },
                 status_code=400
             )
 
         tipo_servicio = otro_tipo_servicio
+
+    # ==========================================================
+    # 4. GUARDAR SERVICIO EN POSTGRESQL
+    # ==========================================================
 
     try:
 
@@ -1153,6 +1171,18 @@ def guardar_servicio_externo(
 
             tipo_registro=enlace.tipo_registro
         )
+
+        # ======================================================
+        # 5. SINCRONIZAR EXCEL CON GOOGLE DRIVE
+        # ======================================================
+        # PostgreSQL ya guardó el servicio.
+        # Si Google Drive falla, el servicio NO se pierde.
+
+        sincronizar_excel_seguro()
+
+        # ======================================================
+        # 6. MOSTRAR CONFIRMACIÓN
+        # ======================================================
 
         return templates.TemplateResponse(
             request=request,

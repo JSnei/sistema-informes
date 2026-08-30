@@ -8,3 +8,5 @@ psycopg[binary]
 openpyxl
 itsdangerous
 resend
+google-api-python-client
+google-auth
