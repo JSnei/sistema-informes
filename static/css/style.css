@@ -1,11 +1,15 @@
-/* =========================
+/* ==================================================
    CONFIGURACIÓN GENERAL
-   ========================= */
+   ================================================== */
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+html {
+    font-size: 16px;
 }
 
 body {
@@ -24,9 +28,9 @@ body {
 }
 
 
-/* =========================
-   CONTENEDOR
-   ========================= */
+/* ==================================================
+   CONTENEDOR PRINCIPAL
+   ================================================== */
 
 .contenedor {
     width: 100%;
@@ -34,14 +38,14 @@ body {
 }
 
 
-/* =========================
-   TARJETA
-   ========================= */
+/* ==================================================
+   TARJETA PRINCIPAL
+   ================================================== */
 
 .tarjeta {
     width: 100%;
 
-    background: white;
+    background: #ffffff;
 
     border-radius: 16px;
 
@@ -53,9 +57,9 @@ body {
 }
 
 
-/* =========================
+/* ==================================================
    LOGO
-   ========================= */
+   ================================================== */
 
 .logo {
     text-align: center;
@@ -63,29 +67,27 @@ body {
 }
 
 .logo img {
+    display: block;
+
     width: 260px;
     max-width: 100%;
     height: auto;
-
-    display: block;
 
     margin: 0 auto;
 }
 
 
-/* =========================
-   BIENVENIDA / TÍTULOS
-   ========================= */
+/* ==================================================
+   BIENVENIDA Y TÍTULOS
+   ================================================== */
 
 .bienvenida {
     text-align: center;
-
     margin-bottom: 35px;
 }
 
 .bienvenida h1 {
     font-size: 27px;
-
     margin-bottom: 10px;
 }
 
@@ -97,28 +99,22 @@ body {
 }
 
 
-/* =========================
-   GRUPOS DEL FORMULARIO
-   ========================= */
+/* ==================================================
+   FORMULARIOS
+   ================================================== */
 
 .grupo {
     width: 100%;
-
     margin-bottom: 22px;
 }
-
-
-/* =========================
-   LABELS
-   ========================= */
 
 label {
     display: block;
 
+    margin-bottom: 8px;
+
     font-size: 14px;
     font-weight: bold;
-
-    margin-bottom: 8px;
 }
 
 .obligatorio {
@@ -126,9 +122,9 @@ label {
 }
 
 
-/* =========================
-   INPUTS
-   ========================= */
+/* ==================================================
+   INPUT
+   ================================================== */
 
 input {
     display: block;
@@ -140,7 +136,7 @@ input {
     border: 1px solid #ccc;
     border-radius: 8px;
 
-    background: white;
+    background: #ffffff;
     color: #222;
 
     font-family: inherit;
@@ -164,23 +160,17 @@ input::placeholder {
     color: #999;
 }
 
-
-/* =========================
-   INPUTS DESHABILITADOS
-   ========================= */
-
 input:disabled {
     background: #f5f5f5;
-
     color: #555;
 
     cursor: not-allowed;
 }
 
 
-/* =========================
+/* ==================================================
    SELECT
-   ========================= */
+   ================================================== */
 
 select {
     display: block;
@@ -192,7 +182,7 @@ select {
     border: 1px solid #ccc;
     border-radius: 8px;
 
-    background: white;
+    background: #ffffff;
     color: #222;
 
     font-family: inherit;
@@ -215,9 +205,9 @@ select:focus {
 }
 
 
-/* =========================
+/* ==================================================
    TEXTAREA
-   ========================= */
+   ================================================== */
 
 textarea {
     display: block;
@@ -230,7 +220,7 @@ textarea {
     border: 1px solid #ccc;
     border-radius: 8px;
 
-    background: white;
+    background: #ffffff;
     color: #222;
 
     font-family: inherit;
@@ -258,9 +248,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
-   BOTONES
-   ========================= */
+/* ==================================================
+   BOTÓN PRINCIPAL
+   ================================================== */
 
 .boton {
     display: block;
@@ -268,14 +258,13 @@ textarea::placeholder {
     width: 100%;
 
     padding: 14px;
-
     margin-top: 8px;
 
     border: none;
     border-radius: 8px;
 
     background: #111;
-    color: white;
+    color: #ffffff;
 
     font-family: inherit;
     font-size: 16px;
@@ -300,9 +289,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    BOTÓN ELIMINAR
-   ========================= */
+   ================================================== */
 
 .boton-eliminar,
 .boton-eliminar-confirmar {
@@ -315,9 +304,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    ENLACE CANCELAR / VOLVER
-   ========================= */
+   ================================================== */
 
 .cancelar {
     display: block;
@@ -340,11 +329,12 @@ textarea::placeholder {
 }
 
 
-/* =========================
-   MENSAJE DE ERROR
-   ========================= */
+/* ==================================================
+   MENSAJES DE ERROR
+   ================================================== */
 
-.mensaje-error {
+.mensaje-error,
+.error {
     width: 100%;
 
     background: #fff1f0;
@@ -354,7 +344,6 @@ textarea::placeholder {
     border-radius: 8px;
 
     padding: 12px 14px;
-
     margin-bottom: 18px;
 
     font-size: 14px;
@@ -364,12 +353,17 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    RECORDATORIO DE FOTOS
-   ========================= */
+   ================================================== */
 
 .recordatorio-fotos {
     width: 100%;
+
+    padding: 5px 10px;
+
+    margin-top: 10px;
+    margin-bottom: 22px;
 
     text-align: center;
 
@@ -377,17 +371,12 @@ textarea::placeholder {
 
     font-size: 14px;
     line-height: 1.5;
-
-    margin-top: 10px;
-    margin-bottom: 22px;
-
-    padding: 5px 10px;
 }
 
 
-/* =========================
+/* ==================================================
    LISTA DE TÉCNICOS
-   ========================= */
+   ================================================== */
 
 .tecnico {
     width: 100%;
@@ -417,9 +406,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    ESTADOS
-   ========================= */
+   ================================================== */
 
 .estado {
     display: inline-block;
@@ -447,9 +436,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    ADVERTENCIA ELIMINAR
-   ========================= */
+   ================================================== */
 
 .advertencia {
     text-align: center;
@@ -471,9 +460,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
    TÉCNICO A ELIMINAR
-   ========================= */
+   ================================================== */
 
 .tecnico-eliminar {
     width: 100%;
@@ -504,14 +493,317 @@ textarea::placeholder {
 }
 
 
-/* =========================
+/* ==================================================
+   PANEL ADMINISTRATIVO
+   ================================================== */
+
+.opciones-admin {
+    display: flex;
+    flex-direction: column;
+
+    width: 100%;
+
+    gap: 14px;
+
+    margin-top: 10px;
+}
+
+
+/* Tarjeta de cada opción */
+
+.opcion {
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+
+    padding: 18px;
+
+    background: #fafafa;
+    color: #222;
+
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+
+    text-decoration: none;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.opcion:link,
+.opcion:visited {
+    color: #222;
+    text-decoration: none;
+}
+
+.opcion:hover {
+    background: #ffffff;
+
+    border-color: #cfcfcf;
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.07);
+}
+
+.opcion:active {
+    transform: translateY(0);
+}
+
+
+/* Icono panel administrativo */
+
+.opcion-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    width: 48px;
+    height: 48px;
+
+    margin-right: 16px;
+    margin-bottom: 0;
+
+    background: #111;
+    color: #ffffff;
+
+    border-radius: 10px;
+
+    font-size: 23px;
+    font-weight: normal;
+}
+
+
+/* Textos de la opción */
+
+.opcion h2 {
+    margin: 0 0 5px 0;
+
+    color: #222;
+
+    font-size: 17px;
+    font-weight: bold;
+
+    text-decoration: none;
+}
+
+.opcion p {
+    margin: 0;
+
+    color: #777;
+
+    font-size: 13px;
+    line-height: 1.4;
+
+    text-decoration: none;
+}
+
+
+/* ==================================================
+   ACCIONES DE TÉCNICOS
+   ================================================== */
+
+.acciones-tecnico {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+}
+
+.boton-editar,
+.boton-eliminar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 64px;
+    height: 36px;
+
+    padding: 0 14px;
+
+    border: none;
+    border-radius: 7px;
+
+    font-size: 13px;
+    font-weight: bold;
+
+    text-decoration: none;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.1s ease;
+}
+
+
+/* EDITAR */
+
+.boton-editar {
+    background: #111;
+    color: white;
+}
+
+.boton-editar:visited {
+    color: white;
+}
+
+.boton-editar:hover {
+    background: #333;
+}
+
+
+/* ELIMINAR */
+
+.boton-eliminar {
+    background: #b42318;
+    color: white;
+}
+
+.boton-eliminar:visited {
+    color: white;
+}
+
+.boton-eliminar:hover {
+    background: #8f1d14;
+}
+
+
+/* EFECTO AL PRESIONAR */
+
+.boton-editar:active,
+.boton-eliminar:active {
+    transform: scale(0.97);
+}
+
+
+/* ==================================================
+   PORTADA PRINCIPAL
+   ================================================== */
+
+.opciones-inicio {
+    width: 100%;
+
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+
+    gap: 18px;
+
+    margin-top: 5px;
+}
+
+
+/* Tarjeta de acceso */
+
+.opcion-acceso {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 0;
+    min-height: 160px;
+
+    padding: 22px 15px;
+
+    background: #fafafa;
+    color: #222;
+
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+
+    text-decoration: none;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.opcion-acceso:link,
+.opcion-acceso:visited {
+    color: #222;
+    text-decoration: none;
+}
+
+.opcion-acceso:hover {
+    background: #ffffff;
+
+    border-color: #d1b300;
+
+    transform: translateY(-3px);
+
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.09);
+}
+
+.opcion-acceso:active {
+    transform: translateY(0);
+}
+
+
+/* Icono exclusivo de la portada */
+
+.opcion-acceso .opcion-icono {
+    width: 58px;
+    height: 58px;
+
+    margin: 0 0 13px 0;
+
+    background: #111;
+    color: #ffffff;
+
+    border-radius: 14px;
+
+    font-size: 28px;
+}
+
+
+/* Texto de la portada */
+
+.opcion-texto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    gap: 6px;
+
+    text-align: center;
+}
+
+.opcion-texto strong {
+    color: #222;
+
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.opcion-texto span {
+    color: #777;
+
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+
+/* ==================================================
    FOOTER
-   ========================= */
+   ================================================== */
 
 .footer {
-    text-align: center;
-
     margin-top: 20px;
+
+    text-align: center;
 
     color: #999;
 
@@ -519,9 +811,9 @@ textarea::placeholder {
 }
 
 
-/* =========================
-   CELULARES
-   ========================= */
+/* ==================================================
+   DISEÑO PARA CELULARES
+   ================================================== */
 
 @media (max-width: 600px) {
 
@@ -561,5 +853,245 @@ textarea::placeholder {
 
     textarea {
         min-height: 120px;
+    }
+
+
+    /* Panel administrador */
+
+    .opcion {
+        padding: 15px;
+    }
+
+    .opcion-icono {
+        width: 44px;
+        height: 44px;
+
+        margin-right: 13px;
+
+        font-size: 20px;
+    }
+
+    .opcion h2 {
+        font-size: 16px;
+    }
+
+    .opcion p {
+        font-size: 12px;
+    }
+
+
+    /* Portada principal */
+
+    .opciones-inicio {
+        grid-template-columns: 1fr;
+
+        gap: 14px;
+    }
+
+    .opcion-acceso {
+        min-height: 100px;
+
+        flex-direction: row;
+        justify-content: flex-start;
+
+        padding: 17px 18px;
+    }
+
+    .opcion-acceso .opcion-icono {
+        flex-shrink: 0;
+
+        width: 52px;
+        height: 52px;
+
+        margin: 0 16px 0 0;
+
+        font-size: 25px;
+    }
+
+    .opcion-texto {
+        align-items: flex-start;
+
+        text-align: left;
+    }
+
+    .opcion-texto strong {
+        font-size: 17px;
+    }
+
+    .opcion-texto span {
+        font-size: 13px;
+    }
+}
+
+
+/* ==================================================
+   CELULARES PEQUEÑOS
+   ================================================== */
+
+@media (max-width: 380px) {
+
+    body {
+        padding: 12px 8px;
+    }
+
+    .tarjeta {
+        padding: 22px 15px;
+    }
+
+    .logo img {
+        width: 190px;
+    }
+
+    .bienvenida h1 {
+        font-size: 22px;
+    }
+
+    .opcion-acceso {
+        padding: 14px;
+    }
+
+    .opcion-acceso .opcion-icono {
+        width: 48px;
+        height: 48px;
+
+        margin-right: 13px;
+
+        font-size: 23px;
+    }
+}
+
+
+/* =========================================================
+   PORTADA - SELECCIÓN DE ACCESO
+   ========================================================= */
+
+.opciones-inicio {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 28px;
+}
+
+.opcion-acceso,
+.opcion-acceso:link,
+.opcion-acceso:visited {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 0;
+    min-height: 155px;
+    padding: 22px 15px;
+
+    background: #f8f8f8;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+
+    color: #222;
+    text-decoration: none;
+
+    transition:
+        transform 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+.opcion-acceso:hover {
+    transform: translateY(-3px);
+    background: #ffffff;
+    border-color: #d1b300;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+}
+
+.opcion-acceso .opcion-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 58px;
+    height: 58px;
+
+    margin: 0 0 14px 0;
+    padding: 0;
+
+    border-radius: 14px;
+    background: #111;
+
+    font-size: 27px;
+    line-height: 1;
+}
+
+.opcion-texto {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+
+    text-align: center;
+}
+
+.opcion-texto strong {
+    display: block;
+    color: #222;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.opcion-texto span {
+    display: block;
+    color: #777;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+
+/* =========================================================
+   PORTADA EN CELULAR
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .opciones-inicio {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .opcion-acceso,
+    .opcion-acceso:link,
+    .opcion-acceso:visited {
+        flex-direction: row;
+        justify-content: flex-start;
+
+        min-height: 95px;
+        padding: 16px 18px;
+    }
+
+    .opcion-acceso .opcion-icono {
+        flex-shrink: 0;
+
+        width: 52px;
+        height: 52px;
+
+        margin: 0 16px 0 0;
+
+        font-size: 24px;
+    }
+
+    .opcion-texto {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .opcion-texto strong {
+        font-size: 16px;
+    }
+
+    .opcion-texto span {
+        font-size: 13px;
     }
 }

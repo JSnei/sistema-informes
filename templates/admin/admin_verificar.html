@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Verificar acceso</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <div class="logo">
+                <img src="/static/img/logo.png" alt="Logo de la empresa">
+            </div>
+
+            <div class="bienvenida">
+
+                <h1>Verificación</h1>
+
+                <p>
+                    Hemos enviado un código de seguridad
+                    al correo del administrador.
+                </p>
+
+            </div>
+
+            {% if error %}
+            <div class="mensaje-error">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form action="/admin/verificar-codigo" method="POST">
+
+                <div class="grupo">
+
+                    <label for="codigo">
+                        Código de seguridad
+                    </label>
+
+                    <input
+                        type="text"
+                        id="codigo"
+                        name="codigo"
+                        maxlength="6"
+                        inputmode="numeric"
+                        pattern="[0-9]{6}"
+                        placeholder="000000"
+                        autocomplete="one-time-code"
+                        required
+                        autofocus
+                    >
+
+                </div>
+
+                <div
+                    id="estadoCodigo"
+                    style="
+                        text-align: center;
+                        margin: 15px 0;
+                        font-size: 14px;
+                    "
+                >
+                    Código válido durante:
+                    <strong id="contadorCodigo">10:00</strong>
+                </div>
+
+                <button
+                    type="submit"
+                    class="boton"
+                    id="botonVerificar"
+                >
+                    Verificar código
+                </button>
+
+            </form>
+
+
+            <div
+                style="
+                    margin-top: 25px;
+                    text-align: center;
+                "
+            >
+
+                <p id="textoReenvio">
+                    Podrás solicitar otro código en
+                    <strong id="contadorReenvio">01:00</strong>
+                </p>
+
+                <form
+                    action="/admin/enviar-codigo"
+                    method="POST"
+                    id="formReenvio"
+                    style="display: none;"
+                >
+
+                    <button
+                        type="submit"
+                        class="boton"
+                    >
+                        Reenviar código
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+        <div class="footer">
+            Acceso exclusivo para administradores
+        </div>
+
+    </main>
+
+
+    <script>
+
+        // Tiempos reales enviados por FastAPI
+        let segundosCodigo = {{ segundos_codigo | default(600) }};
+        let segundosReenvio = {{ segundos_reenvio | default(60) }};
+
+
+        const contadorCodigo =
+            document.getElementById("contadorCodigo");
+
+        const contadorReenvio =
+            document.getElementById("contadorReenvio");
+
+        const textoReenvio =
+            document.getElementById("textoReenvio");
+
+        const formReenvio =
+            document.getElementById("formReenvio");
+
+        const botonVerificar =
+            document.getElementById("botonVerificar");
+
+        const estadoCodigo =
+            document.getElementById("estadoCodigo");
+
+
+        function formatoTiempo(segundos) {
+
+            segundos = Math.max(
+                0,
+                Math.floor(segundos)
+            );
+
+            const minutos =
+                Math.floor(segundos / 60);
+
+            const segundosRestantes =
+                segundos % 60;
+
+            return (
+                String(minutos).padStart(2, "0")
+                + ":"
+                + String(segundosRestantes).padStart(2, "0")
+            );
+        }
+
+
+        function actualizarPantalla() {
+
+            // -----------------------------
+            // Vencimiento del OTP
+            // -----------------------------
+
+            if (segundosCodigo > 0) {
+
+                contadorCodigo.textContent =
+                    formatoTiempo(segundosCodigo);
+
+            } else {
+
+                contadorCodigo.textContent = "00:00";
+
+                estadoCodigo.innerHTML =
+                    "<strong>El código ha vencido.</strong>";
+
+                botonVerificar.disabled = true;
+
+            }
+
+
+            // -----------------------------
+            // Reenvío
+            // -----------------------------
+
+            if (segundosReenvio > 0) {
+
+                contadorReenvio.textContent =
+                    formatoTiempo(segundosReenvio);
+
+                textoReenvio.style.display = "block";
+
+                formReenvio.style.display = "none";
+
+            } else {
+
+                textoReenvio.style.display = "none";
+
+                formReenvio.style.display = "block";
+
+            }
+
+        }
+
+
+        actualizarPantalla();
+
+
+        const intervalo = setInterval(function () {
+
+            if (segundosCodigo > 0) {
+                segundosCodigo--;
+            }
+
+            if (segundosReenvio > 0) {
+                segundosReenvio--;
+            }
+
+            actualizarPantalla();
+
+
+            if (
+                segundosCodigo <= 0 &&
+                segundosReenvio <= 0
+            ) {
+
+                clearInterval(intervalo);
+
+            }
+
+        }, 1000);
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Servicio registrado</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/style.css?v=3"
+    >
+
+</head>
+
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <div class="logo">
+
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+
+            </div>
+
+
+            <div class="bienvenida">
+
+                <h1>Servicio registrado</h1>
+
+                <p>
+                    La información del servicio fue guardada correctamente.
+                </p>
+
+            </div>
+
+
+            <div
+                style="
+                    text-align: center;
+                    padding: 20px;
+                    background: #f5f5f5;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                "
+            >
+
+                <p>
+                    <strong>Número de registro</strong>
+                </p>
+
+                <p
+                    style="
+                        font-size: 28px;
+                        font-weight: bold;
+                        margin-top: 10px;
+                    "
+                >
+                    #{{ servicio_id }}
+                </p>
+
+            </div>
+
+
+            <p
+                style="
+                    text-align: center;
+                    color: #666;
+                    line-height: 1.5;
+                "
+            >
+                Este enlace ya fue utilizado y no puede volver
+                a emplearse para registrar otro servicio.
+            </p>
+
+            <p
+                style="
+                    text-align: center;
+                    color: #666;
+                    margin-top: 15px;
+                "
+            >
+                Solicitud de servicio
+                <strong>#{{ enlace_id }}</strong>
+            </p>
+
+        </div>
+
+
+        <div class="footer">
+            BS Electromecánica S.A.S.
+        </div>
+
+    </main>
+
+</body>
+
+</html>

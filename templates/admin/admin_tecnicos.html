@@ -12,7 +12,7 @@
 
     <title>Técnicos</title>
 
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
 
     <style>
 
@@ -168,19 +168,23 @@
 
                     <div class="acciones-tecnico">
 
-                    <a
-                        href="/admin/editar/{{ tecnico['id'] }}"
-                        class="boton-editar"
-                    >
-                        Editar
-                    </a>
+                    <div class="acciones-tecnico">
 
-                    <a
-                        href="/admin/eliminar/{{ tecnico['id'] }}"
-                        class="boton-eliminar"
-                    >
-                        Eliminar
-                    </a>
+                <a
+                    href="/admin/editar/{{ tecnico['id'] }}"
+                    class="boton-editar"
+                >
+                    Editar
+                </a>
+
+                <a
+                    href="/admin/eliminar/{{ tecnico['id'] }}"
+                    class="boton-eliminar"
+                >
+                    Eliminar
+                </a>
+
+                </div>
 
                 </div>
 

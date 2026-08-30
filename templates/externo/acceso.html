@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Servicio técnico</title>
+
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+
+    <style>
+
+        .verificar-tienda {
+            margin-top: 30px;
+        }
+
+        .verificar-tienda label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .verificar-tienda input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 13px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .error-tienda {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f5f5f5;
+            text-align: center;
+        }
+
+        .tienda-confirmada {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .tienda-confirmada h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .tienda-confirmada p {
+            margin: 8px 0;
+        }
+
+        .tienda-correcta {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <div class="logo">
+
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+
+            </div>
+
+
+            <div class="bienvenida">
+
+                <h1>Servicio técnico</h1>
+
+                <p>
+                    Verifica la tienda donde realizarás el servicio.
+                </p>
+
+            </div>
+
+
+            <!-- SI TODAVÍA NO SE HA VERIFICADO LA TIENDA -->
+
+            {% if not tienda %}
+
+                <form
+                    action="/s/{{ token }}/verificar-tienda"
+                    method="post"
+                    class="verificar-tienda"
+                >
+
+                    <label for="sap">
+                        Número de tienda (SAP)
+                    </label>
+
+                    <input
+                        type="text"
+                        id="sap"
+                        name="sap"
+                        value="{{ sap_ingresado if sap_ingresado else '' }}"
+                        placeholder="Ejemplo: 12345"
+                        autocomplete="off"
+                        required
+                    >
+
+                    <button
+                        type="submit"
+                        class="boton"
+                    >
+                        Verificar tienda
+                    </button>
+
+                </form>
+
+
+                {% if error %}
+
+                    <div class="error-tienda">
+
+                        {{ error }}
+
+                    </div>
+
+                {% endif %}
+
+
+            {% else %}
+
+
+                <!-- TIENDA ENCONTRADA -->
+
+                <div class="tienda-confirmada">
+
+                    <div class="tienda-correcta">
+                        ✓ Tienda encontrada
+                    </div>
+
+                    <h2>
+                        {{ tienda.nombre }}
+                    </h2>
+
+                    <p>
+                        <strong>SAP:</strong>
+                        {{ tienda.sap }}
+                    </p>
+
+                    <p>
+                        <strong>Región:</strong>
+                        {{ tienda.region or "No registrada" }}
+                    </p>
+
+                    <p>
+                        <strong>Tipo:</strong>
+                        {{ tienda.tipo or "No registrado" }}
+                    </p>
+
+                    <p>
+                        <strong>Ciudad:</strong>
+                        {{ tienda.ciudad or "No registrada" }}
+                    </p>
+
+                    <p>
+                        <strong>Departamento:</strong>
+                        {{ tienda.departamento or "No registrado" }}
+                    </p>
+
+                    <p>
+                        <strong>Dirección:</strong>
+                        {{ tienda.direccion or "No registrada" }}
+                    </p>
+
+                </div>
+
+
+                <br>
+
+
+                <!-- POR AHORA SOLO PROBAMOS LA VERIFICACIÓN -->
+
+                <form
+                    action="/s/{{ token }}/formulario"
+                    method="post"
+                    >
+
+                                    <input
+                                        type="hidden"
+                                        name="sap"
+                                        value="{{ tienda.sap }}"
+                                    >
+
+                                    <form
+                    action="/s/{{ token }}/formulario"
+                    method="post"
+                >
+
+                    <input
+                        type="hidden"
+                        name="sap"
+                        value="{{ tienda.sap }}"
+                    >
+
+                    <button
+                        type="submit"
+                        class="boton"
+                    >
+                        Continuar con el servicio
+                    </button>
+
+                </form>
+
+                </form>
+
+
+            {% endif %}
+
+        </div>
+
+
+        <div class="footer">
+            BS Electromecánica S.A.S.
+        </div>
+
+    </main>
+
+</body>
+
+</html>

@@ -1,6 +1,17 @@
 __pycache__/
 *.pyc
+
 .venv/
 venv/
+
 .env
+.env.*
+
 database/sistema.db
+
+.vscode/
+.DS_Store
+Thumbs.db
+
+
+Tiendas_Unificadas_R7_R8_CORREGIDO.xlsx

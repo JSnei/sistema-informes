@@ -31,6 +31,14 @@
 
             </div>
 
+            {% if error %}
+
+            <div class="mensaje-error">
+                {{ error }}
+            </div>
+
+            {% endif %}
+
             <form action="/admin/enviar-codigo" method="POST">
 
                 <button type="submit" class="boton">
@@ -48,4 +56,5 @@
     </main>
 
 </body>
+
 </html>

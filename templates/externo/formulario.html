@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Informe de servicio</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/style.css?v=2"
+    >
+
+    <style>
+
+        .datos-tienda {
+            margin-top: 25px;
+            margin-bottom: 35px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .datos-tienda h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .datos-tienda p {
+            margin: 6px 0;
+        }
+
+        .formulario-servicio {
+            text-align: left;
+        }
+
+        .seccion-formulario {
+            margin-bottom: 35px;
+        }
+
+        .seccion-formulario h2 {
+            text-align: center;
+            margin-bottom: 22px;
+            font-size: 20px;
+        }
+
+        .campo {
+            margin-bottom: 18px;
+        }
+
+        .campo label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: bold;
+        }
+
+        .campo input,
+        .campo select,
+        .campo textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 15px;
+        }
+
+        .campo textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .campo input:focus,
+        .campo select:focus,
+        .campo textarea:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .tienda-correcta {
+            margin-top: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #campo_repuestos {
+            display: none;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+
+            <!-- LOGO -->
+
+            <div class="logo">
+
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+
+            </div>
+
+
+            <!-- TÍTULO -->
+
+            <div class="bienvenida">
+
+                <h1>Informe de servicio</h1>
+
+                <p>
+                    Completa la información del servicio realizado.
+                </p>
+
+            </div>
+
+
+            <!-- INFORMACIÓN DE LA TIENDA -->
+
+            <div class="datos-tienda">
+
+                <h2>
+                    {{ tienda.nombre }}
+                </h2>
+
+                <p>
+                    <strong>SAP:</strong>
+                    {{ tienda.sap }}
+                </p>
+
+                <p>
+                    <strong>Ciudad:</strong>
+                    {{ tienda.ciudad }}
+                </p>
+
+                <p>
+                    <strong>Departamento:</strong>
+                    {{ tienda.departamento }}
+                </p>
+
+                <p>
+                    <strong>Dirección:</strong>
+                    {{ tienda.direccion }}
+                </p>
+
+                <div class="tienda-correcta">
+                    ✓ Tienda verificada correctamente
+                </div>
+
+            </div>
+
+
+            <!-- FORMULARIO -->
+
+            <form
+                action="/s/{{ token }}/guardar-servicio"
+                method="post"
+                class="formulario-servicio"
+            >
+
+
+                <!-- SAP DE LA TIENDA OCULTO -->
+
+                <input
+                    type="hidden"
+                    name="sap_tienda"
+                    value="{{ tienda.sap }}"
+                >
+
+
+                <!-- =============================== -->
+                <!-- DATOS DEL SERVICIO -->
+                <!-- =============================== -->
+
+                <div class="seccion-formulario">
+
+                    <h2>Datos del servicio</h2>
+
+
+                    <!-- NÚMERO DE TICKET -->
+
+                    <div class="campo">
+
+                        <label for="ticket">
+                            Número de ticket *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="ticket"
+                            name="ticket"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- TIPO DE SERVICIO -->
+
+                    <div class="campo">
+
+                        <label for="tipo_servicio">
+                            Tipo de servicio *
+                        </label>
+
+                        <select
+                            id="tipo_servicio"
+                            name="tipo_servicio"
+                            required
+                        >
+
+                            <option value="">
+                                Selecciona una opción
+                            </option>
+
+                            <option value="PREVENTIVO">
+                                Mantenimiento preventivo
+                            </option>
+
+                            <option value="CORRECTIVO">
+                                Mantenimiento correctivo
+                            </option>
+
+                            <option value="EMERGENCIA">
+                                Atención de emergencia
+                            </option>
+
+                            <option value="INSTALACION">
+                                Instalación
+                            </option>
+
+                            <option value="OTRO">
+                                Otro
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================== -->
+                <!-- TÉCNICO EXTERNO -->
+                <!-- =============================== -->
+
+                <div class="seccion-formulario">
+
+                    <h2>Técnico externo</h2>
+
+
+                    <!-- CÉDULA -->
+
+                    <div class="campo">
+
+                        <label for="cedula_tecnico">
+                            Número de cédula *
+                        </label>
+
+                        <input
+                            type="numeric"
+                            id="cedula_tecnico"
+                            name="cedula_tecnico"
+                            inputmode="numeric"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- NOMBRE -->
+
+                    <div class="campo">
+
+                        <label for="nombre_tecnico">
+                            Nombre completo *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="nombre_tecnico"
+                            name="nombre_tecnico"
+                            required
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================== -->
+                <!-- ENCARGADO DE TIENDA -->
+                <!-- =============================== -->
+
+                <div class="seccion-formulario">
+
+                    <h2>Encargado de tienda</h2>
+
+
+                    <!-- SAP ENCARGADO -->
+
+                    <div class="campo">
+
+                        <label for="sap_encargado">
+                            SAP del encargado *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="sap_encargado"
+                            name="sap_encargado"
+                            required
+                        >
+
+                    </div>
+
+
+                    <!-- NOMBRE ENCARGADO -->
+
+                    <div class="campo">
+
+                        <label for="nombre_encargado">
+                            Nombre del encargado *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="nombre_encargado"
+                            name="nombre_encargado"
+                            required
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================== -->
+                <!-- INFORMACIÓN TÉCNICA -->
+                <!-- =============================== -->
+
+                <div class="seccion-formulario">
+
+                    <h2>Información técnica</h2>
+
+
+                    <!-- DESCRIPCIÓN DE LA FALLA -->
+
+                    <div class="campo">
+
+                        <label for="descripcion_falla">
+                            Descripción de la falla *
+                        </label>
+
+                        <textarea
+                            id="descripcion_falla"
+                            name="descripcion_falla"
+                            placeholder="Describe la falla encontrada..."
+                            required
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- TRABAJO REALIZADO -->
+
+                    <div class="campo">
+
+                        <label for="trabajo_realizado">
+                            Trabajo realizado *
+                        </label>
+
+                        <textarea
+                            id="trabajo_realizado"
+                            name="trabajo_realizado"
+                            placeholder="Describe el trabajo realizado..."
+                            required
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- OBSERVACIONES -->
+
+                    <div class="campo">
+
+                        <label for="observaciones">
+                            Observaciones
+                        </label>
+
+                        <textarea
+                            id="observaciones"
+                            name="observaciones"
+                            placeholder="Información adicional del servicio..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- =============================== -->
+                    <!-- REPUESTOS -->
+                    <!-- =============================== -->
+
+                    <div class="campo">
+
+                        <label for="suministro_repuestos">
+                            ¿Se suministraron repuestos? *
+                        </label>
+
+                        <select
+                            id="suministro_repuestos"
+                            name="suministro_repuestos"
+                            required
+                        >
+
+                            <option value="">
+                                Selecciona una opción
+                            </option>
+
+                            <option value="SI">
+                                Sí
+                            </option>
+
+                            <option value="NO">
+                                No
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- SE DESPLIEGA SOLO SI SELECCIONA SÍ -->
+
+                    <div
+                        class="campo"
+                        id="campo_repuestos"
+                    >
+
+                        <label for="repuestos_suministrados">
+                            ¿Qué repuestos se suministraron? *
+                        </label>
+
+                        <textarea
+                            id="repuestos_suministrados"
+                            name="repuestos_suministrados"
+                            placeholder="Describe los repuestos suministrados..."
+                        ></textarea>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =============================== -->
+                <!-- GUARDAR -->
+                <!-- =============================== -->
+
+                <button
+                    type="submit"
+                    class="boton"
+                >
+                    Guardar servicio
+                </button>
+
+            </form>
+
+        </div>
+
+
+        <div class="footer">
+            BS Electromecánica S.A.S.
+        </div>
+
+    </main>
+
+
+    <!-- =============================== -->
+    <!-- JAVASCRIPT -->
+    <!-- =============================== -->
+
+    <script>
+
+        const selectorRepuestos =
+            document.getElementById("suministro_repuestos");
+
+        const campoRepuestos =
+            document.getElementById("campo_repuestos");
+
+        const repuestos =
+            document.getElementById("repuestos_suministrados");
+
+
+        function mostrarRepuestos() {
+
+            if (selectorRepuestos.value === "SI") {
+
+                campoRepuestos.style.display = "block";
+
+                repuestos.required = true;
+
+            } else {
+
+                campoRepuestos.style.display = "none";
+
+                repuestos.required = false;
+
+                repuestos.value = "";
+
+            }
+
+        }
+
+
+        selectorRepuestos.addEventListener(
+            "change",
+            mostrarRepuestos
+        );
+
+
+        mostrarRepuestos();
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Verificar acceso</title>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+<main class="contenedor">
+
+    <div class="tarjeta">
+
+        <div class="logo">
+            <img src="/static/img/logo.png" alt="Logo de la empresa">
+        </div>
+
+        <div class="bienvenida">
+
+            <h1>Verificar acceso</h1>
+
+            <p>
+                Hemos enviado un código de verificación al correo
+                correspondiente.
+            </p>
+
+        </div>
+
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/verificar-tecnico" method="POST">
+
+            <input
+                type="hidden"
+                name="credencial"
+                value="{{ credencial }}"
+            >
+
+            <div class="grupo">
+
+                <label for="codigo">
+                    Código de verificación
+                </label>
+
+                <input
+                    type="text"
+                    id="codigo"
+                    name="codigo"
+                    placeholder="Ingresa el código de 6 dígitos"
+                    maxlength="6"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    required
+                >
+
+            </div>
+
+            <button type="submit" class="boton">
+                Verificar
+            </button>
+
+        </form>
+
+        <div style="text-align:center; margin-top:20px;">
+
+            <a href="/" style="color:#666;">
+                ← Volver
+            </a>
+
+        </div>
+
+    </div>
+
+</main>
+
+</body>
+</html>

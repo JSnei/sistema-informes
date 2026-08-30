@@ -7,57 +7,8 @@
 
     <title>Panel Administrativo</title>
 
-    <link rel="stylesheet" href="/static/css/style.css">
-
-    <style>
-        .opciones-admin {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 30px;
-        }
-
-        .opcion {
-            text-decoration: none;
-            color: #222;
-            border: 1px solid #e5e5e5;
-            border-radius: 12px;
-            padding: 30px 20px;
-            text-align: center;
-            transition: 0.2s;
-            background: #fafafa;
-        }
-
-        .opcion:hover {
-            background: #f1f1f1;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.06);
-        }
-
-        .opcion-icono {
-            font-size: 35px;
-            margin-bottom: 15px;
-        }
-
-        .opcion h2 {
-            font-size: 18px;
-            margin-bottom: 8px;
-        }
-
-        .opcion p {
-            font-size: 13px;
-            color: #777;
-            line-height: 1.4;
-        }
-
-        @media (max-width: 600px) {
-            .opciones-admin {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
 </head>
-
 
 <body>
 
@@ -66,7 +17,6 @@
         <div class="tarjeta">
 
             <!-- LOGO -->
-
             <div class="logo">
                 <img
                     src="/static/img/logo.png"
@@ -74,9 +24,7 @@
                 >
             </div>
 
-
             <!-- TÍTULO -->
-
             <div class="bienvenida">
 
                 <h1>Panel administrativo</h1>
@@ -87,24 +35,21 @@
 
             </div>
 
-
-            <!-- OPCIONES -->
-
+            <!-- OPCIONES DEL ADMINISTRADOR -->
             <div class="opciones-admin">
 
-                <!-- AGREGAR -->
-
+                <!-- AGREGAR TÉCNICO -->
                 <a
                     href="/admin/agregar"
                     class="opcion"
                 >
 
                     <div class="opcion-icono">
-                            +
+                        +
                     </div>
 
                     <h2>Agregar técnico</h2>
-                            
+
                     <p>
                         Registrar una nueva persona
                         autorizada en el sistema.
@@ -113,8 +58,7 @@
                 </a>
 
 
-                <!-- EDITAR -->
-
+                <!-- EDITAR TÉCNICOS -->
                 <a
                     href="/admin/tecnicos"
                     class="opcion"
@@ -133,6 +77,46 @@
 
                 </a>
 
+
+                <!-- SERVICIOS EXTERNOS -->
+                <a
+                    href="/admin/servicios-externos"
+                    class="opcion"
+                >
+
+                    <div class="opcion-icono">
+                        🔗
+                    </div>
+
+                    <h2>Servicios externos</h2>
+
+                    <p>
+                        Generar y administrar enlaces
+                        para técnicos externos.
+                    </p>
+
+                </a>
+
+
+                <!-- REALIZAR INFORME -->
+                <a
+                    href="/admin/realizar-informe"
+                    class="opcion"
+                >
+
+                    <div class="opcion-icono">
+                        📋
+                    </div>
+
+                    <h2>Realizar informe</h2>
+
+                    <p>
+                        Crear un nuevo informe
+                        desde el perfil de administrador.
+                    </p>
+
+                </a>
+
             </div>
 
         </div>
@@ -140,6 +124,13 @@
         <div class="footer">
             Administración · Sistema de Informes
         </div>
+
+        <form action="/admin/cerrar-sesion" method="post">
+            <button type="submit" class="boton">
+                Cerrar sesión
+            </button>
+        </form> 
+
 
     </main>
 
