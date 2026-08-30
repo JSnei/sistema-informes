@@ -79,7 +79,7 @@ def generar_excel_servicios():
         hoja.append([
             servicio["servicio_id"],
             servicio["solicitud_id"],
-            servicio["fecha"],
+            servicio["fecha"].replace(tzinfo=None) if servicio["fecha"] else None,
             servicio["ticket"],
             servicio["sap_tienda"],
             servicio["nombre_tienda"],
