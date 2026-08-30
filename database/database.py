@@ -1158,5 +1158,69 @@ def obtener_servicios():
         return servicios_admin
 
 
+def obtener_servicios_para_excel():
+
+    with SessionLocal() as db:
+
+        resultados = (
+            db.query(
+                Servicio,
+                Tienda
+            )
+            .join(
+                Tienda,
+                Servicio.tienda_id == Tienda.id
+            )
+            .filter(
+                Servicio.tipo_registro == "REAL"
+            )
+            .order_by(
+                Servicio.id.asc()
+            )
+            .all()
+        )
+
+        datos = []
+
+        for servicio, tienda in resultados:
+
+            datos.append({
+                "servicio_id": servicio.id,
+                "solicitud_id": servicio.enlace_externo_id,
+                "fecha": servicio.fecha_registro,
+
+                "ticket": servicio.ticket,
+
+                "sap_tienda": tienda.sap,
+                "nombre_tienda": tienda.nombre,
+                "ciudad": tienda.ciudad,
+                "departamento": tienda.departamento,
+                "direccion": tienda.direccion,
+                "region": tienda.region,
+                "tipo_tienda": tienda.tipo,
+
+                "tipo_servicio": servicio.tipo_servicio,
+
+                "cedula_tecnico": servicio.cedula_tecnico,
+                "nombre_tecnico": servicio.nombre_tecnico,
+
+                "sap_encargado": servicio.sap_encargado,
+                "nombre_encargado": servicio.nombre_encargado,
+
+                "descripcion_falla": servicio.descripcion_falla,
+                "trabajo_realizado": servicio.trabajo_realizado,
+                "observaciones": servicio.observaciones,
+
+                "suministro_repuestos": (
+                    "SI" if servicio.suministro_repuestos else "NO"
+                ),
+
+                "repuestos_suministrados":
+                    servicio.repuestos_suministrados,
+
+                "estado": servicio.estado
+            })
+
+        return datos
 
     
