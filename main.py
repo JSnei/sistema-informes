@@ -37,7 +37,11 @@ codigo_admin = {
     "ultimo_envio": None,
     "intentos": 0
 }
+
 codigo_tecnicos = {}
+
+# OTP temporal para operadores de servicios externos
+codigo_operadores = {}
 
 
 app = FastAPI()
@@ -64,16 +68,59 @@ async def proteger_rutas_admin(request: Request, call_next):
         or ruta.startswith("/admin/")
     )
 
-    if es_ruta_admin and ruta not in RUTAS_ADMIN_PUBLICAS:
+    if not es_ruta_admin:
+        return await call_next(request)
 
-        if request.session.get("admin_autenticado") is not True:
+    # -----------------------------------------------------
+    # RUTAS PÚBLICAS DEL LOGIN ADMIN
+    # -----------------------------------------------------
 
-            return RedirectResponse(
-                url="/admin",
-                status_code=303
-            )
+    if ruta in RUTAS_ADMIN_PUBLICAS:
+        return await call_next(request)
 
-    return await call_next(request)
+    # -----------------------------------------------------
+    # ADMINISTRADOR
+    # -----------------------------------------------------
+
+    # El administrador puede acceder a todas las rutas /admin.
+    if request.session.get("admin_autenticado") is True:
+        return await call_next(request)
+
+    # -----------------------------------------------------
+    # OPERADOR DE SERVICIOS EXTERNOS
+    # -----------------------------------------------------
+
+    operador_autenticado = (
+        request.session.get("operador_autenticado") is True
+        and request.session.get("operador_rol")
+        == "operador_servicios_externos"
+    )
+
+    if operador_autenticado:
+
+        # El operador únicamente puede entrar a esta sección
+        # y a las rutas que cuelgan de ella.
+        if (
+            ruta == "/admin/servicios-externos"
+            or ruta.startswith("/admin/servicios-externos/")
+        ):
+            return await call_next(request)
+
+        # Si intenta escribir manualmente otra URL /admin,
+        # lo devolvemos a su propio panel.
+        return RedirectResponse(
+            url="/panel-operador",
+            status_code=303
+        )
+
+    # -----------------------------------------------------
+    # SIN AUTENTICACIÓN
+    # -----------------------------------------------------
+
+    return RedirectResponse(
+        url="/admin",
+        status_code=303
+    )
 
 
 # ---------------------------------------------------------
@@ -101,6 +148,35 @@ app.add_middleware(
     max_age=28800
 )
 
+
+def sesion_operador_valida(request: Request):
+
+    # Debe existir una sesión autenticada
+    if not request.session.get("operador_autenticado"):
+        return False
+
+    # Debe ser específicamente el operador 400
+    if request.session.get("operador_credencial") != "400":
+        return False
+
+    # Obtener fecha y hora de inicio
+    inicio = request.session.get("operador_inicio")
+
+    if not inicio:
+        return False
+
+    try:
+        inicio = datetime.fromisoformat(inicio)
+    except (ValueError, TypeError):
+        request.session.clear()
+        return False
+
+    # Comprobar si ya pasó una hora
+    if datetime.now() - inicio >= timedelta(hours=1):
+        request.session.clear()
+        return False
+
+    return True
 
 crear_base_datos()
 
@@ -252,6 +328,100 @@ def pagina_servicios_admin(request: Request):
             "servicios": servicios
         }
     )
+
+
+# ==========================================================
+# VER SERVICIOS - OPERADOR 400
+# ==========================================================
+
+@app.get("/operador/servicios")
+def pagina_servicios_operador(request: Request):
+
+    if not sesion_operador_valida(request):
+        return RedirectResponse(
+            url="/",
+            status_code=303
+        )
+
+    servicios = obtener_servicios()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="operador/operador_servicios.html",
+        context={
+            "servicios": servicios
+        }
+    )
+
+@app.get("/panel-operador")
+def panel_operador(request: Request):
+
+    if not sesion_operador_valida(request):
+        return RedirectResponse(
+            url="/",
+            status_code=303
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="operador/panel_operador.html",
+        context={}
+    )
+
+
+# ==========================================================
+# ACCESO DEL TÉCNICO EXTERNO
+# ==========================================================
+
+@app.get("/s/{token}")
+def acceso_servicio_externo(
+    request: Request,
+    token: str
+):
+
+    enlace = obtener_enlace_externo(token)
+
+    # El enlace no existe
+    if enlace is None:
+        return templates.TemplateResponse(
+            request=request,
+            name="externo/enlace_invalido.html",
+            context={
+                "error": "El enlace no existe o no es válido."
+            },
+            status_code=404
+        )
+
+    # El enlace ya fue utilizado o cancelado
+    if enlace.estado != "PENDIENTE":
+        return templates.TemplateResponse(
+            request=request,
+            name="externo/enlace_invalido.html",
+            context={
+                "error": "Este enlace ya no se encuentra disponible."
+            },
+            status_code=403
+        )
+
+    # El enlace superó las 24 horas
+    if enlace_externo_vencido(enlace):
+        return templates.TemplateResponse(
+            request=request,
+            name="externo/enlace_invalido.html",
+            context={
+                "error": "Este enlace ha vencido. Solicita uno nuevo."
+            },
+            status_code=403
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="externo/acceso.html",
+        context={
+            "token": token
+        }
+    )
+
 
 # =========================
 # POST
@@ -593,59 +763,6 @@ def cancelar_acceso_externo(id_enlace: int):
 
 
 # ==========================================================
-# ACCESO DEL TÉCNICO EXTERNO
-# ==========================================================
-
-@app.get("/s/{token}")
-def acceso_servicio_externo(
-    request: Request,
-    token: str
-):
-
-    enlace = obtener_enlace_externo(token)
-
-    # El enlace no existe
-    if enlace is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "El enlace no existe o no es válido."
-            },
-            status_code=404
-        )
-
-    # El enlace ya fue utilizado o cancelado
-    if enlace.estado != "PENDIENTE":
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ya no se encuentra disponible."
-            },
-            status_code=403
-        )
-
-    # El enlace superó las 24 horas
-    if enlace_externo_vencido(enlace):
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ha vencido. Solicita uno nuevo."
-            },
-            status_code=403
-        )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="externo/acceso.html",
-        context={
-            "token": token
-        }
-    )
-
-# ==========================================================
 # VERIFICAR TIENDA - SERVICIO EXTERNO
 # ==========================================================
 
@@ -722,6 +839,77 @@ def verificar_tienda_externa(
         context={
             "token": token,
             "tienda": tienda
+        }
+    )
+
+
+# ==========================================================
+# GENERAR ENLACE EXTERNO - OPERADOR 400
+# ==========================================================
+
+@app.post("/operador/servicios-externos/generar")
+def generar_enlace_externo_operador(
+    request: Request,
+    tipo_registro: str = Form("REAL")
+):
+
+    # =====================================================
+    # SEGURIDAD - SOLO OPERADOR 400 AUTENTICADO
+    # =====================================================
+
+    if not sesion_operador_valida(request):
+        return RedirectResponse(
+            url="/",
+            status_code=303
+        )
+    # =====================================================
+    # VALIDAR TIPO DE REGISTRO
+    # =====================================================
+
+    tipo_registro = str(tipo_registro).strip().upper()
+
+    if tipo_registro not in ["REAL", "PRUEBA"]:
+
+        return templates.TemplateResponse(
+            request=request,
+            name="operador/panel_operador.html",
+            context={
+                "error": "El tipo de registro seleccionado no es válido."
+            },
+            status_code=400
+        )
+
+    # =====================================================
+    # GENERAR TOKEN
+    # =====================================================
+
+    token = secrets.token_urlsafe(32)
+
+    crear_enlace_externo(
+        token,
+        tipo_registro
+    )
+
+    # =====================================================
+    # CREAR URL COMPLETA
+    # =====================================================
+
+    enlace_completo = str(
+        request.url_for(
+            "acceso_servicio_externo",
+            token=token
+        )
+    )
+
+    # =====================================================
+    # MOSTRAR ENLACE GENERADO
+    # =====================================================
+
+    return templates.TemplateResponse(
+        request=request,
+        name="operador/panel_operador.html",
+        context={
+            "enlace_generado": enlace_completo
         }
     )
 
@@ -901,6 +1089,66 @@ def iniciar_servicio(
     credencial: str = Form(...),
     fecha: str = Form(...)
 ):
+
+    # =====================================================
+    # ACCESO ESPECIAL - OPERADOR DE SERVICIOS
+    # =====================================================
+
+    if credencial == "400":
+
+        correo_operador = os.getenv("OPERADOR_400_EMAIL")
+
+        if not correo_operador:
+            print("ERROR: OPERADOR_400_EMAIL no está configurado.")
+
+            return templates.TemplateResponse(
+                request=request,
+                name="tecnico/tecnico.html",
+                context={
+                    "error": "El correo del operador no está configurado."
+                }
+            )
+
+        # Generar código aleatorio de 6 dígitos
+        codigo = str(secrets.randbelow(900000) + 100000)
+
+        # Guardar temporalmente el código del operador
+        codigo_operadores[credencial] = {
+            "codigo": codigo
+        }
+
+        # Enviar código mediante Resend
+        try:
+            enviar_codigo(
+                correo_operador,
+                codigo
+            )
+
+        except Exception as error:
+            print("ERROR AL ENVIAR CORREO AL OPERADOR:", error)
+
+            return templates.TemplateResponse(
+                request=request,
+                name="tecnico/tecnico.html",
+                context={
+                    "error": "No fue posible enviar el código de verificación."
+                }
+            )
+
+        # Mostrar pantalla para ingresar OTP
+        return templates.TemplateResponse(
+            request=request,
+            name="tecnico/tecnico_verificar.html",
+            context={
+                "credencial": credencial,
+                "correo": correo_operador
+            }
+        )
+
+    # =====================================================
+    # ACCESO NORMAL DE TÉCNICOS
+    # =====================================================
+
     tecnico = obtener_tecnico_por_credencial(credencial)
 
     if tecnico is None:
@@ -924,18 +1172,19 @@ def iniciar_servicio(
     # Generar código aleatorio de 6 dígitos
     codigo = str(secrets.randbelow(900000) + 100000)
 
-    # Guardamos temporalmente la información del acceso
+    # Guardar temporalmente la información
     codigo_tecnicos[credencial] = {
         "codigo": codigo,
         "fecha": fecha
     }
 
-    # Enviar el código al correo registrado del técnico
+    # Enviar código al correo del técnico mediante Resend
     try:
         enviar_codigo(
             tecnico.correo,
             codigo
         )
+
     except Exception as error:
         print("ERROR AL ENVIAR CORREO:", error)
 
@@ -956,13 +1205,70 @@ def iniciar_servicio(
         }
     )
 
-
 @app.post("/verificar-tecnico")
 def verificar_tecnico(
     request: Request,
     credencial: str = Form(...),
     codigo: str = Form(...)
 ):
+
+    # =====================================================
+    # VERIFICACIÓN OPERADOR DE SERVICIOS - CÓDIGO 400
+    # =====================================================
+
+    if credencial == "400":
+
+        datos = codigo_operadores.get(credencial)
+
+        if datos is None:
+            return RedirectResponse(
+                url="/",
+                status_code=303
+            )
+
+        # =================================================
+        # CÓDIGO INCORRECTO
+        # =================================================
+
+        if codigo != datos["codigo"]:
+
+            correo_operador = os.getenv("OPERADOR_400_EMAIL")
+
+            return templates.TemplateResponse(
+                request=request,
+                name="tecnico/tecnico_verificar.html",
+                context={
+                    "credencial": credencial,
+                    "correo": correo_operador,
+                    "error": "El código ingresado es incorrecto."
+                }
+            )
+
+        # =================================================
+        # CÓDIGO CORRECTO
+        # =================================================
+
+        # El código solamente puede utilizarse una vez
+        del codigo_operadores[credencial]
+
+        # Crear sesión del operador 400
+        request.session["operador_autenticado"] = True
+        request.session["operador_rol"] = "operador_servicios_externos"
+        request.session["operador_credencial"] = credencial
+
+        # Guardar fecha y hora de inicio de la sesión
+        request.session["operador_inicio"] = datetime.now().isoformat()
+
+        # Enviar al panel exclusivo del operador
+        return RedirectResponse(
+            url="/panel-operador",
+            status_code=303
+        )
+
+    # =====================================================
+    # VERIFICACIÓN NORMAL DE TÉCNICOS
+    # =====================================================
+
     tecnico = obtener_tecnico_por_credencial(credencial)
 
     if tecnico is None:
@@ -979,7 +1285,12 @@ def verificar_tecnico(
             status_code=303
         )
 
+    # =====================================================
+    # CÓDIGO INCORRECTO
+    # =====================================================
+
     if codigo != datos["codigo"]:
+
         return templates.TemplateResponse(
             request=request,
             name="tecnico/tecnico_verificar.html",
@@ -989,6 +1300,10 @@ def verificar_tecnico(
                 "error": "El código ingresado es incorrecto."
             }
         )
+
+    # =====================================================
+    # CÓDIGO CORRECTO
+    # =====================================================
 
     fecha = datos["fecha"]
 
@@ -1003,7 +1318,6 @@ def verificar_tecnico(
             "fecha": fecha
         }
     )
-
 
 @app.post("/generar-mensaje")
 def generar_mensaje(

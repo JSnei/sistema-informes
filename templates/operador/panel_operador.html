@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Servicios externos</title>
+
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+
+    <style>
+        .acciones-servicios {
+            margin-top: 35px;
+        }
+
+        .acciones-servicios .boton {
+            margin-top: 12px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <!-- ========================================= -->
+            <!-- LOGO -->
+            <!-- ========================================= -->
+
+            <div class="logo">
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- BIENVENIDA -->
+            <!-- ========================================= -->
+
+            <div class="bienvenida">
+
+                <h1>Servicios externos</h1>
+
+                <p>
+                    Genera un acceso temporal para un técnico externo.
+                </p>
+
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- MENSAJE DE ERROR -->
+            <!-- ========================================= -->
+
+            {% if error %}
+
+                <div class="mensaje-error">
+                    {{ error }}
+                </div>
+
+            {% endif %}
+
+
+            <!-- ========================================= -->
+            <!-- GENERAR ENLACE -->
+            <!-- ========================================= -->
+
+            <form
+                action="/operador/servicios-externos/generar"
+                method="post"
+            >
+
+                <div class="grupo">
+
+                    <label for="tipo_registro">
+                        Tipo de registro
+                    </label>
+
+                    <select
+                        id="tipo_registro"
+                        name="tipo_registro"
+                        required
+                    >
+
+                        <option value="REAL" selected>
+                            Servicio real
+                        </option>
+
+                        <option value="PRUEBA">
+                            Servicio de prueba
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="boton"
+                >
+                    Generar nuevo enlace
+                </button>
+
+            </form>
+
+
+            <!-- ========================================= -->
+            <!-- ENLACE RECIÉN GENERADO -->
+            <!-- ========================================= -->
+
+            {% if enlace_generado %}
+
+                <div class="enlace-generado">
+
+                    <h2>
+                        Enlace generado
+                    </h2>
+
+                    <input
+                        type="text"
+                        id="enlaceGenerado"
+                        value="{{ enlace_generado }}"
+                        readonly
+                    >
+
+                    <button
+                        type="button"
+                        class="boton"
+                        onclick="copiarEnlace()"
+                    >
+                        Copiar enlace
+                    </button>
+
+                    <p id="mensajeCopiado"></p>
+
+                </div>
+
+            {% endif %}
+
+
+            <!-- ========================================= -->
+            <!-- SERVICIOS REGISTRADOS -->
+            <!-- ========================================= -->
+
+            <div class="acciones-servicios">
+
+                <a
+                    href="/operador/servicios"
+                    class="boton"
+                >
+                    Ver servicios registrados
+                </a>
+
+            </div>
+
+        </div>
+
+
+        <!-- ========================================= -->
+        <!-- FOOTER -->
+        <!-- ========================================= -->
+
+        <div class="footer">
+            Servicios Externos · Sistema de Informes
+        </div>
+
+    </main>
+
+
+    <!-- ============================================= -->
+    <!-- JAVASCRIPT -->
+    <!-- ============================================= -->
+
+    <script>
+
+        function copiarEnlace() {
+
+            const campo =
+                document.getElementById("enlaceGenerado");
+
+            const mensaje =
+                document.getElementById("mensajeCopiado");
+
+            navigator.clipboard
+                .writeText(campo.value)
+                .then(function () {
+
+                    mensaje.textContent =
+                        "✓ Enlace copiado correctamente.";
+
+                })
+                .catch(function () {
+
+                    campo.select();
+
+                    mensaje.textContent =
+                        "Selecciona el enlace y cópialo manualmente.";
+
+                });
+
+        }
+
+    </script>
+
+</body>
+
+</html>

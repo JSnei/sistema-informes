@@ -43,7 +43,7 @@
                     type="text"
                     id="credencial"
                     name="credencial"
-                    placeholder="Ej. 1028"
+                    placeholder="Ej. 101, 201 o 401"
                     required
                 >
 
@@ -83,34 +83,39 @@
 
             <div class="grupo">
 
-            <label for="rol">
-                Perfil del técnico
-            </label>
+                <label for="rol">
+                    Perfil del técnico
+                </label>
 
-            <select
-                id="rol"
-                name="rol"
-                required
-            >
-                <option value="" disabled selected>
-                    Seleccione un perfil
-                </option>
+                <select
+                    id="rol"
+                    name="rol"
+                    required
+                >
 
-                <option value="locativo_cedi">
-                    Locativo CEDI
-                </option>
+                    <option value="" disabled selected>
+                        Seleccione un perfil
+                    </option>
 
-                <option value="electromecanico_cedi">
-                    Electromecánico CEDI
-                </option>
+                    <option value="locativo_cedi">
+                        Locativo CEDI
+                    </option>
 
-                <option value="electromecanico_general">
-                    Electromecánico general
-                </option>
+                    <option value="electromecanico_cedi">
+                        Electromecánico CEDI
+                    </option>
 
-            </select>
+                    <option value="electromecanico_general">
+                        Electromecánico general
+                    </option>
 
-        </div>
+                    <option value="operador_servicios_externos">
+                        Operador de servicios externos
+                    </option>
+
+                </select>
+
+            </div>
 
             <button type="submit" class="boton">
                 Agregar técnico
@@ -131,4 +136,5 @@
 </main>
 
 </body>
+
 </html>

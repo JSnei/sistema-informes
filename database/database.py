@@ -353,6 +353,12 @@ def obtener_grupo_por_credencial(credencial):
     if 201 <= numero <= 299:
         return "EMPRESA"
 
+    if 301 <= numero <= 399:
+        return "RESERVADO"
+
+    if 401 <= numero <= 499:
+        return "SERVICIOS_EXTERNOS"
+
     return None
 
 
@@ -422,9 +428,42 @@ def agregar_tecnico(
 
     if grupo is None:
         raise ValueError(
-            "La credencial debe estar entre 101-199 "
-            "para CEDI o 201-299 para BS Electromecánica."
+            "La credencial debe pertenecer a uno de los rangos permitidos: "
+            "101-199 CEDI, 201-299 BS Electromecánica, "
+            "301-399 reservado o 401-499 Servicios Externos."
         )
+
+    rol = str(rol).strip()
+
+    # ----------------------------------------------------------
+    # VALIDAR GRUPO 300
+    # ----------------------------------------------------------
+    # Este rango queda reservado para uso futuro.
+    if grupo == "RESERVADO":
+        raise ValueError(
+            "Las credenciales 301-399 están reservadas "
+            "y actualmente no pueden utilizarse."
+        )
+
+    # ----------------------------------------------------------
+    # VALIDAR OPERADORES DE SERVICIOS EXTERNOS
+    # ----------------------------------------------------------
+    # Solo las credenciales 401-499 pueden tener este rol.
+    if rol == "operador_servicios_externos":
+        if grupo != "SERVICIOS_EXTERNOS":
+            raise ValueError(
+                "El perfil Operador de servicios externos "
+                "solo puede utilizar credenciales entre 401 y 499."
+            )
+
+    # Una credencial 401-499 obligatoriamente debe tener
+    # el rol de operador de servicios externos.
+    if grupo == "SERVICIOS_EXTERNOS":
+        if rol != "operador_servicios_externos":
+            raise ValueError(
+                "Las credenciales 401-499 deben utilizar el perfil "
+                "Operador de servicios externos."
+            )
 
     with SessionLocal() as db:
 
@@ -445,7 +484,7 @@ def agregar_tecnico(
             credencial=str(credencial),
             nombre=nombre.strip(),
             correo=correo.strip(),
-            rol=rol.strip(),
+            rol=rol,
             activo=True
         )
 
@@ -472,9 +511,41 @@ def editar_tecnico(
 
     if grupo is None:
         raise ValueError(
-            "La credencial debe estar entre 101-199 "
-            "para CEDI o 201-299 para BS Electromecánica."
+            "La credencial debe pertenecer a uno de los rangos permitidos: "
+            "101-199 CEDI, 201-299 BS Electromecánica, "
+            "301-399 reservado o 401-499 Servicios Externos."
         )
+
+    rol = str(rol).strip()
+
+    # ----------------------------------------------------------
+    # VALIDAR GRUPO 300
+    # ----------------------------------------------------------
+    # Este rango queda reservado para uso futuro.
+    if grupo == "RESERVADO":
+        raise ValueError(
+            "Las credenciales 301-399 están reservadas "
+            "y actualmente no pueden utilizarse."
+        )
+
+    # ----------------------------------------------------------
+    # VALIDIDAR OPERADOR DE SERVICIOS EXTERNOS
+    # ----------------------------------------------------------
+    # Solo las credenciales 401-499 pueden tener este rol.
+    if rol == "operador_servicios_externos":
+        if grupo != "SERVICIOS_EXTERNOS":
+            raise ValueError(
+                "El perfil Operador de servicios externos "
+                "solo puede utilizar credenciales entre 401 y 499."
+            )
+
+    # Toda credencial 401-499 debe conservar este rol.
+    if grupo == "SERVICIOS_EXTERNOS":
+        if rol != "operador_servicios_externos":
+            raise ValueError(
+                "Las credenciales 401-499 deben utilizar el perfil "
+                "Operador de servicios externos."
+            )
 
     with SessionLocal() as db:
 
@@ -506,7 +577,7 @@ def editar_tecnico(
         tecnico.credencial = str(credencial)
         tecnico.nombre = nombre.strip()
         tecnico.correo = correo.strip()
-        tecnico.rol = rol.strip()
+        tecnico.rol = rol
 
         db.commit()
 

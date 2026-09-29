@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Servicios registrados</title>
+
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+
+    <style>
+        .servicio-item {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        .servicio-item h3 {
+            margin-top: 0;
+        }
+
+        .estado {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <!-- LOGO -->
+
+            <div class="logo">
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+            </div>
+
+
+            <!-- TITULO -->
+
+            <div class="bienvenida">
+
+                <h1>Servicios registrados</h1>
+
+                <p>
+                    Consulta los servicios externos generados.
+                </p>
+
+            </div>
+
+
+            <!-- MENSAJE DE ERROR -->
+
+            {% if error %}
+
+                <div class="mensaje-error">
+                    {{ error }}
+                </div>
+
+            {% endif %}
+
+
+            <!-- LISTADO -->
+
+            {% if servicios %}
+
+                {% for servicio in servicios %}
+
+                    <div class="servicio-item">
+
+                        <h3>
+                            Solicitud de servicio #{{ servicio.enlace_id }}
+                        </h3>
+
+
+                        <p>
+                            <strong>Tipo:</strong>
+                            {{ servicio.tipo_registro }}
+                        </p>
+
+
+                        <p>
+                            <strong>Estado:</strong>
+
+                            <span class="estado">
+                                {{ servicio.estado }}
+                            </span>
+                        </p>
+
+
+                        <p>
+                            <strong>Generado:</strong>
+                            {{ servicio.fecha_generado }}
+                        </p>
+
+
+                        <!-- ================================= -->
+                        <!-- SERVICIO REALIZADO -->
+                        <!-- ================================= -->
+
+                        {% if servicio.estado == "REALIZADO" %}
+
+                            <p>
+                                <strong>Ticket:</strong>
+                                {{ servicio.ticket }}
+                            </p>
+
+                            <p>
+                                <strong>Tipo de servicio:</strong>
+                                {{ servicio.tipo_servicio }}
+                            </p>
+
+                            <p>
+                                <strong>Técnico:</strong>
+                                {{ servicio.nombre_tecnico }}
+                            </p>
+
+                            <p>
+                                <strong>Cédula:</strong>
+                                {{ servicio.cedula_tecnico }}
+                            </p>
+
+                            <p>
+                                <strong>Realizado:</strong>
+                                {{ servicio.fecha_realizado }}
+                            </p>
+
+                        {% endif %}
+
+
+                        <!-- ================================= -->
+                        <!-- SERVICIO PENDIENTE -->
+                        <!-- ================================= -->
+
+                        {% if servicio.estado == "PENDIENTE" %}
+
+                            <p>
+                                El técnico todavía no ha registrado
+                                este servicio.
+                            </p>
+
+                        {% endif %}
+
+
+                        <!-- ================================= -->
+                        <!-- SERVICIO CANCELADO -->
+                        <!-- ================================= -->
+
+                        {% if servicio.estado == "CANCELADO" %}
+
+                            <p>
+                                Este servicio fue cancelado
+                                antes de ser realizado.
+                            </p>
+
+                        {% endif %}
+
+
+                        <!-- ================================= -->
+                        <!-- SERVICIO ANULADO -->
+                        <!-- ================================= -->
+
+                        {% if servicio.estado == "ANULADO" %}
+
+                            <p>
+                                <strong>Ticket:</strong>
+                                {{ servicio.ticket }}
+                            </p>
+
+                            <p>
+                                <strong>Tipo de servicio:</strong>
+                                {{ servicio.tipo_servicio }}
+                            </p>
+
+                            <p>
+                                <strong>Técnico:</strong>
+                                {{ servicio.nombre_tecnico }}
+                            </p>
+
+                            <p>
+                                <strong>Cédula:</strong>
+                                {{ servicio.cedula_tecnico }}
+                            </p>
+
+                            <p>
+                                <strong>Realizado:</strong>
+                                {{ servicio.fecha_realizado }}
+                            </p>
+
+                            <p>
+                                Este servicio fue anulado.
+                                El registro se conserva en el historial.
+                            </p>
+
+                        {% endif %}
+
+                    </div>
+
+                {% endfor %}
+
+            {% else %}
+
+                <p>
+                    No se han generado servicios.
+                </p>
+
+            {% endif %}
+
+
+            <br>
+
+
+            <!-- VOLVER -->
+
+            <a
+                href="/panel-operador"
+                class="boton"
+            >
+                Volver a servicios externos
+            </a>
+
+        </div>
+
+
+        <div class="footer">
+            Servicios Externos · Sistema de Informes
+        </div>
+
+    </main>
+
+</body>
+
+</html>
