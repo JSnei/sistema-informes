@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Gestión de Tiendas</title>
+
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+
+    <style>
+        .acciones-superiores {
+            margin: 25px 0;
+        }
+
+        .lista-tiendas {
+            margin-top: 25px;
+        }
+
+        .tienda {
+            border: 1px solid #dddddd;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 15px;
+        }
+
+        .tienda h2 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .tienda p {
+            margin: 5px 0;
+        }
+
+        .estado-activo {
+            font-weight: bold;
+        }
+
+        .estado-inactivo {
+            font-weight: bold;
+        }
+
+        .acciones-tienda {
+            margin-top: 15px;
+        }
+
+        .acciones-tienda form {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <!-- LOGO -->
+            <div class="logo">
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+            </div>
+
+            <!-- TÍTULO -->
+            <div class="bienvenida">
+
+                <h1>Gestión de tiendas</h1>
+
+                <p>
+                    Consulta y administra las tiendas
+                    registradas en el sistema.
+                </p>
+
+            </div>
+
+            <!-- MENSAJES -->
+            {% if mensaje %}
+                <div class="mensaje-exito">
+                    {{ mensaje }}
+                </div>
+            {% endif %}
+
+            {% if error %}
+                <div class="mensaje-error">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+
+            <!-- AGREGAR TIENDA -->
+            <div class="acciones-superiores">
+
+                <a
+                    href="/admin/tiendas/agregar"
+                    class="boton"
+                >
+                    + Agregar tienda
+                </a>
+
+            </div>
+
+
+            <!-- LISTADO -->
+            <div class="lista-tiendas">
+
+                {% if tiendas %}
+
+                    {% for tienda in tiendas %}
+
+                        <div class="tienda">
+
+                            <h2>
+                                {{ tienda.nombre }}
+                            </h2>
+
+                            <p>
+                                <strong>SAP:</strong>
+                                {{ tienda.sap }}
+                            </p>
+
+                            <p>
+                                <strong>Región:</strong>
+                                {{ tienda.region or "No registrada" }}
+                            </p>
+
+                            <p>
+                                <strong>Tipo:</strong>
+                                {{ tienda.tipo or "No registrado" }}
+                            </p>
+
+                            <p>
+                                <strong>Ciudad:</strong>
+                                {{ tienda.ciudad or "No registrada" }}
+                            </p>
+
+                            <p>
+                                <strong>Departamento:</strong>
+                                {{ tienda.departamento or "No registrado" }}
+                            </p>
+
+                            <p>
+                                <strong>Dirección:</strong>
+                                {{ tienda.direccion or "No registrada" }}
+                            </p>
+
+                            <p>
+                                <strong>Estado:</strong>
+
+                                {% if tienda.activo %}
+                                    <span class="estado-activo">
+                                        ACTIVA
+                                    </span>
+                                {% else %}
+                                    <span class="estado-inactivo">
+                                        INACTIVA
+                                    </span>
+                                {% endif %}
+                            </p>
+
+
+                            <!-- ACCIONES -->
+                            <div class="acciones-tienda">
+
+                                <a
+                                    href="/admin/tiendas/{{ tienda.id }}/editar"
+                                    class="boton"
+                                >
+                                    Editar tienda
+                                </a>
+
+
+                                {% if tienda.activo %}
+
+                                    <form
+                                        action="/admin/tiendas/{{ tienda.id }}/estado"
+                                        method="post"
+                                    >
+
+                                        <input
+                                            type="hidden"
+                                            name="activo"
+                                            value="false"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            class="boton"
+                                            onclick="return confirm('¿Deseas deshabilitar esta tienda?');"
+                                        >
+                                            Deshabilitar
+                                        </button>
+
+                                    </form>
+
+                                {% else %}
+
+                                    <form
+                                        action="/admin/tiendas/{{ tienda.id }}/estado"
+                                        method="post"
+                                    >
+
+                                        <input
+                                            type="hidden"
+                                            name="activo"
+                                            value="true"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            class="boton"
+                                        >
+                                            Reactivar
+                                        </button>
+
+                                    </form>
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <p>
+                        No hay tiendas registradas.
+                    </p>
+
+                {% endif %}
+
+            </div>
+
+
+            <!-- VOLVER -->
+            <div class="acciones-superiores">
+
+                <a
+                    href="/admin/panel"
+                    class="boton"
+                >
+                    Volver al panel
+                </a>
+
+            </div>
+
+        </div>
+
+
+        <div class="footer">
+            Administración · Sistema de Informes
+        </div>
+
+    </main>
+
+</body>
+
+</html>

@@ -23,11 +23,16 @@ from database.database import (
     obtener_enlaces_externos,
     cancelar_enlace_externo,
     obtener_tienda_por_sap,
+    obtener_tiendas,
+    agregar_tienda,
+    editar_tienda,
+    cambiar_estado_tienda,
     crear_servicio_externo,
     eliminar_servicio_prueba,
     anular_servicio_real,
+    obtener_tienda_por_id,
     obtener_servicios
-)
+)   
 
 
 load_dotenv()
@@ -330,6 +335,125 @@ def pagina_servicios_admin(request: Request):
     )
 
 
+@app.get("/admin/tiendas")
+def pagina_tiendas_admin(request: Request):
+
+    tiendas = obtener_tiendas()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/admin_tiendas.html",
+        context={
+            "tiendas": tiendas
+        }
+    )
+
+
+@app.get("/admin/tiendas/agregar")
+def pagina_agregar_tienda(request: Request):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/admin_tienda_agregar.html",
+        context={}
+    )
+
+
+@app.post("/admin/tiendas/agregar")
+def guardar_nueva_tienda(
+    request: Request,
+    sap: str = Form(...),
+    region: str = Form(""),
+    tipo: str = Form(""),
+    nombre: str = Form(...),
+    ciudad: str = Form(""),
+    departamento: str = Form(""),
+    direccion: str = Form("")
+):
+
+    sap = sap.strip()
+    nombre = nombre.strip()
+
+    # SAP obligatorio
+    if not sap:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_agregar.html",
+            context={
+                "error": "El SAP de la tienda es obligatorio."
+            },
+            status_code=400
+        )
+
+    # Nombre obligatorio
+    if not nombre:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_agregar.html",
+            context={
+                "error": "El nombre de la tienda es obligatorio.",
+                "sap": sap
+            },
+            status_code=400
+        )
+
+    # Comprobar si el SAP ya existe
+    tienda_existente = obtener_tienda_por_sap(sap)
+
+    if tienda_existente is not None:
+
+        estado = (
+            "activa"
+            if tienda_existente.activo
+            else "inactiva"
+        )
+
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_agregar.html",
+            context={
+                "error": (
+                    f"El SAP {sap} ya pertenece a "
+                    f"{tienda_existente.nombre} y la tienda "
+                    f"se encuentra {estado}."
+                ),
+                "sap": sap,
+                "region": region,
+                "tipo": tipo,
+                "nombre": nombre,
+                "ciudad": ciudad,
+                "departamento": departamento,
+                "direccion": direccion
+            },
+            status_code=400
+        )
+
+    creada = agregar_tienda(
+        sap=sap,
+        region=region,
+        tipo=tipo,
+        nombre=nombre,
+        ciudad=ciudad,
+        departamento=departamento,
+        direccion=direccion
+    )
+
+    if not creada:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_agregar.html",
+            context={
+                "error": "No fue posible registrar la tienda."
+            },
+            status_code=400
+        )
+
+    return RedirectResponse(
+        url="/admin/tiendas",
+        status_code=303
+    )
+
+
 # ==========================================================
 # VER SERVICIOS - OPERADOR 400
 # ==========================================================
@@ -421,6 +545,34 @@ def acceso_servicio_externo(
             "token": token
         }
     )
+
+
+# =========================================================
+# EDITAR TIENDA - MOSTRAR FORMULARIO
+# =========================================================
+
+@app.get("/admin/tiendas/{id_tienda}/editar")
+def pagina_editar_tienda(
+    request: Request,
+    id_tienda: int
+):
+    tienda = obtener_tienda_por_id(id_tienda)
+
+    if tienda is None:
+        return RedirectResponse(
+            url="/admin/tiendas",
+            status_code=303
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/admin_tienda_editar.html",
+        context={
+            "tienda": tienda
+        }
+    )
+
+
 
 
 # =========================
@@ -1371,6 +1523,7 @@ Muchas gracias por leer.
 
 @app.post("/s/{token}/guardar-servicio")
 def guardar_servicio_externo(
+
     request: Request,
     token: str,
 
@@ -1517,3 +1670,99 @@ def guardar_servicio_externo(
             },
             status_code=400
         )
+
+
+
+# =========================================================
+# EDITAR TIENDA - GUARDAR CAMBIOS
+# =========================================================
+
+@app.post("/admin/tiendas/{id_tienda}/editar")
+def guardar_edicion_tienda(
+    request: Request,
+    id_tienda: int,
+    region: str = Form(...),
+    tipo: str = Form(""),
+    nombre: str = Form(...),
+    ciudad: str = Form(""),
+    departamento: str = Form(""),
+    direccion: str = Form("")
+):
+    tienda = obtener_tienda_por_id(id_tienda)
+
+    if tienda is None:
+        return RedirectResponse(
+            url="/admin/tiendas",
+            status_code=303
+        )
+
+    nombre = nombre.strip()
+    region = region.strip()
+
+    if not nombre:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_editar.html",
+            context={
+                "tienda": tienda,
+                "error": "El nombre de la tienda es obligatorio."
+            },
+            status_code=400
+        )
+
+    if region not in ["1", "7", "8"]:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_editar.html",
+            context={
+                "tienda": tienda,
+                "error": "La región seleccionada no es válida."
+            },
+            status_code=400
+        )
+
+    resultado = editar_tienda(
+        id_tienda=id_tienda,
+        region=region,
+        tipo=tipo,
+        nombre=nombre,
+        ciudad=ciudad,
+        departamento=departamento,
+        direccion=direccion
+    )
+
+    if not resultado:
+        return templates.TemplateResponse(
+            request=request,
+            name="admin/admin_tienda_editar.html",
+            context={
+                "tienda": tienda,
+                "error": "No fue posible actualizar la tienda."
+            },
+            status_code=400
+        )
+
+    return RedirectResponse(
+        url="/admin/tiendas",
+        status_code=303
+    )
+
+
+# =========================================================
+# ACTIVAR / DESACTIVAR TIENDA
+# =========================================================
+
+@app.post("/admin/tiendas/{id_tienda}/estado")
+def cambiar_estado_tienda_admin(
+    id_tienda: int,
+    activo: bool = Form(...)
+):
+    cambiar_estado_tienda(
+        id_tienda,
+        activo
+    )
+
+    return RedirectResponse(
+        url="/admin/tiendas",
+        status_code=303
+    )

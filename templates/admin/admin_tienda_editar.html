@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Editar Tienda</title>
+
+    <link rel="stylesheet" href="/static/css/style.css?v=2">
+
+    <style>
+        .nota-sap {
+            margin-top: 6px;
+            font-size: 13px;
+            opacity: 0.75;
+        }
+
+        .campo-bloqueado {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .acciones-formulario {
+            margin-top: 25px;
+        }
+
+        .acciones-formulario .boton {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <div class="tarjeta">
+
+            <!-- LOGO -->
+            <div class="logo">
+                <img
+                    src="/static/img/logo.png"
+                    alt="Logo de la empresa"
+                >
+            </div>
+
+            <!-- TÍTULO -->
+            <div class="bienvenida">
+
+                <h1>Editar tienda</h1>
+
+                <p>
+                    Modifica la información de la tienda.
+                </p>
+
+            </div>
+
+
+            <!-- ERROR -->
+            {% if error %}
+
+                <div class="mensaje-error">
+                    {{ error }}
+                </div>
+
+            {% endif %}
+
+
+            <!-- FORMULARIO -->
+            <form
+                action="/admin/tiendas/{{ tienda.id }}/editar"
+                method="post"
+            >
+
+                <!-- SAP -->
+                <div class="grupo">
+
+                    <label for="sap">
+                        SAP de la tienda
+                    </label>
+
+                    <input
+                        type="text"
+                        id="sap"
+                        value="{{ tienda.sap }}"
+                        class="campo-bloqueado"
+                        disabled
+                    >
+
+                    <div class="nota-sap">
+                        El SAP es el identificador único de la tienda
+                        y no puede modificarse.
+                    </div>
+
+                </div>
+
+
+                <!-- NOMBRE -->
+                <div class="grupo">
+
+                    <label for="nombre">
+                        Nombre de la tienda *
+                    </label>
+
+                    <input
+                        type="text"
+                        id="nombre"
+                        name="nombre"
+                        value="{{ tienda.nombre }}"
+                        maxlength="200"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- REGIÓN -->
+                <div class="grupo">
+
+                    <label for="region">
+                        Región *
+                    </label>
+
+                    <select
+                        id="region"
+                        name="region"
+                        required
+                    >
+
+                        <option value="">
+                            Selecciona una región
+                        </option>
+
+                        <option
+                            value="1"
+                            {% if tienda.region|string == "1" %}selected{% endif %}
+                        >
+                            R1
+                        </option>
+
+                        <option
+                            value="7"
+                            {% if tienda.region|string == "7" %}selected{% endif %}
+                        >
+                            R7
+                        </option>
+
+                        <option
+                            value="8"
+                            {% if tienda.region|string == "8" %}selected{% endif %}
+                        >
+                            R8
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- TIPO -->
+                <div class="grupo">
+
+                    <label for="tipo">
+                        Tipo
+                    </label>
+
+                    <input
+                        type="text"
+                        id="tipo"
+                        name="tipo"
+                        value="{{ tienda.tipo or '' }}"
+                        maxlength="50"
+                    >
+
+                </div>
+
+
+                <!-- CIUDAD -->
+                <div class="grupo">
+
+                    <label for="ciudad">
+                        Ciudad
+                    </label>
+
+                    <input
+                        type="text"
+                        id="ciudad"
+                        name="ciudad"
+                        value="{{ tienda.ciudad or '' }}"
+                        maxlength="150"
+                    >
+
+                </div>
+
+
+                <!-- DEPARTAMENTO -->
+                <div class="grupo">
+
+                    <label for="departamento">
+                        Departamento
+                    </label>
+
+                    <input
+                        type="text"
+                        id="departamento"
+                        name="departamento"
+                        value="{{ tienda.departamento or '' }}"
+                        maxlength="150"
+                    >
+
+                </div>
+
+
+                <!-- DIRECCIÓN -->
+                <div class="grupo">
+
+                    <label for="direccion">
+                        Dirección
+                    </label>
+
+                    <input
+                        type="text"
+                        id="direccion"
+                        name="direccion"
+                        value="{{ tienda.direccion or '' }}"
+                        maxlength="300"
+                    >
+
+                </div>
+
+
+                <!-- BOTONES -->
+                <div class="acciones-formulario">
+
+                    <button
+                        type="submit"
+                        class="boton"
+                    >
+                        Guardar cambios
+                    </button>
+
+                    <a
+                        href="/admin/tiendas"
+                        class="boton"
+                    >
+                        Cancelar
+                    </a>
+
+                </div>
+
+            </form>
+
+        </div>
+
+
+        <div class="footer">
+            Administración · Sistema de Informes
+        </div>
+
+    </main>
+
+</body>
+
+</html>

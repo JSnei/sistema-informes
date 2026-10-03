@@ -688,6 +688,19 @@ def obtener_tienda_por_sap(sap):
         return tienda
 
 
+def obtener_tienda_por_id(id_tienda):
+
+    with SessionLocal() as db:
+
+        tienda = (
+            db.query(Tienda)
+            .filter(Tienda.id == id_tienda)
+            .first()
+        )
+
+        return tienda
+
+
 # ==========================================================
 # AGREGAR TIENDA
 # ==========================================================
@@ -1294,4 +1307,129 @@ def obtener_servicios_para_excel():
 
         return datos
 
-    
+
+def obtener_tiendas():
+    with SessionLocal() as db:
+        return (
+            db.query(Tienda)
+            .order_by(Tienda.sap.asc())
+            .all()
+        )
+
+
+def agregar_tienda(
+    sap,
+    region,
+    tipo,
+    nombre,
+    ciudad,
+    departamento,
+    direccion
+):
+    sap = str(sap).strip()
+
+    with SessionLocal() as db:
+
+        tienda_existente = (
+            db.query(Tienda)
+            .filter(Tienda.sap == sap)
+            .first()
+        )
+
+        if tienda_existente:
+            return False
+
+        nueva_tienda = Tienda(
+            sap=sap,
+            region=region.strip() if region else None,
+            tipo=tipo.strip() if tipo else None,
+            nombre=nombre.strip(),
+            ciudad=ciudad.strip() if ciudad else None,
+            departamento=departamento.strip() if departamento else None,
+            direccion=direccion.strip() if direccion else None,
+            activo=True
+        )
+
+        db.add(nueva_tienda)
+        db.commit()
+
+        return True
+
+
+def editar_tienda(
+    id_tienda,
+    region,
+    tipo,
+    nombre,
+    ciudad,
+    departamento,
+    direccion
+):
+    with SessionLocal() as db:
+
+        tienda = (
+            db.query(Tienda)
+            .filter(Tienda.id == id_tienda)
+            .first()
+        )
+
+        if tienda is None:
+            return False
+
+        # El SAP NO se modifica.
+        # Es el identificador único de la tienda.
+
+        tienda.region = (
+            region.strip()
+            if region
+            else None
+        )
+
+        tienda.tipo = (
+            tipo.strip()
+            if tipo
+            else None
+        )
+
+        tienda.nombre = nombre.strip()
+
+        tienda.ciudad = (
+            ciudad.strip()
+            if ciudad
+            else None
+        )
+
+        tienda.departamento = (
+            departamento.strip()
+            if departamento
+            else None
+        )
+
+        tienda.direccion = (
+            direccion.strip()
+            if direccion
+            else None
+        )
+
+        db.commit()
+
+        return True
+
+
+def cambiar_estado_tienda(id_tienda, activo):
+    with SessionLocal() as db:
+
+        tienda = (
+            db.query(Tienda)
+            .filter(Tienda.id == id_tienda)
+            .first()
+        )
+
+        if tienda is None:
+            return False
+
+        tienda.activo = activo
+
+        db.commit()
+
+        return True
