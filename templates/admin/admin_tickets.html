@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tickets y solicitudes</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .contenedor { max-width: 1000px; }
+        .resumen, .filtros { display:flex; flex-wrap:wrap; gap:12px; margin:20px 0; }
+        .resumen span { background:#f4f6f8; border-radius:8px; padding:12px; }
+        .campos-ticket { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
+        .solicitud { border:1px solid #ddd; border-radius:10px; padding:20px; margin:18px 0; }
+        .solicitud p { margin:8px 0; overflow-wrap:anywhere; }
+        .descripcion-ticket { white-space:pre-wrap; }
+        .sin-numero { color:#8a4b00; background:#fff3cd; padding:8px; border-radius:6px; }
+        details > summary { cursor:pointer; font-weight:bold; margin:15px 0; }
+        #datos-tienda { margin-bottom:20px; padding:12px; background:#f4f6f8; white-space:pre-line; }
+        @media(max-width:600px) { .campos-ticket { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+<main class="contenedor"><div class="tarjeta">
+    <div class="logo"><img src="/static/img/logo.png" alt="BS Electromecánica"></div>
+    <div class="bienvenida"><h1>Tickets y solicitudes</h1><p>Registra las solicitudes de la oficina y consulta su avance.</p></div>
+    {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
+    <div class="resumen">
+        <span><strong>{{ pendientes }}</strong> pendientes</span>
+        <span><strong>{{ realizados }}</strong> realizados</span>
+        <span><strong>{{ sin_numero }}</strong> sin número de ticket</span>
+    </div>
+    <details {% if valores %}open{% endif %}>
+        <summary>{{ 'Editar solicitud #' ~ editar_id if editar_id else 'Registrar ticket o solicitud sin número' }}</summary>
+        <form action="{{ '/admin/tickets/' ~ editar_id ~ '/editar' if editar_id else '/admin/tickets' }}" method="post" id="registro-ticket">
+            <div class="campos-ticket">
+                <div class="grupo"><label for="numero">Número de ticket *</label>
+                    <input id="numero" name="numero" maxlength="100" value="{{ valores.get('numero', '') }}" required>
+                    <small>Si todavía no tiene número, escribe 000.</small>
+                </div>
+                <div class="grupo"><label for="sap_tienda">Número de tienda (SAP) *</label>
+                    <input id="sap_tienda" name="sap_tienda" maxlength="30" value="{{ valores.get('sap_tienda', '') }}" autocomplete="off" required>
+                </div>
+            </div>
+            <div id="datos-tienda" role="status" aria-live="polite">Ingresa el SAP para completar la tienda, dirección y ciudad.</div>
+            <div class="campos-ticket">
+                <div class="grupo"><label for="prioridad">Prioridad *</label><select id="prioridad" name="prioridad" required>
+                    {% for prioridad in ['BAJA', 'MEDIA', 'ALTA', 'URGENTE'] %}
+                    <option value="{{ prioridad }}" {% if valores.get('prioridad', 'MEDIA') == prioridad %}selected{% endif %}>{{ prioridad }}</option>
+                    {% endfor %}
+                </select></div>
+                <div class="grupo"><label for="fecha_reporte">Fecha y hora del reporte *</label>
+                    <input type="datetime-local" id="fecha_reporte" name="fecha_reporte" step="1" value="{{ valores.get('fecha_reporte', '') }}" required>
+                </div>
+                {% for campo, etiqueta, limite in [('contacto','Contacto',150), ('telefonos','Teléfono / celular',150), ('registrado_por','Registrado por',150), ('coordinador','Coordinador',150), ('codigo','Código',100), ('equipo','Equipo',200)] %}
+                <div class="grupo"><label for="{{ campo }}">{{ etiqueta }}{% if campo == 'equipo' %} *{% endif %}</label>
+                    <input id="{{ campo }}" name="{{ campo }}" maxlength="{{ limite }}" value="{{ valores.get(campo, '') }}" {% if campo == 'equipo' %}required{% endif %}>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="grupo"><label for="descripcion">Descripción de la solicitud *</label>
+                <textarea id="descripcion" name="descripcion" required>{{ valores.get('descripcion', '') }}</textarea>
+            </div>
+            <button class="boton" type="submit" id="guardar-ticket" disabled>{{ 'Guardar cambios' if editar_id else 'Guardar solicitud y generar enlace' }}</button>
+            {% if editar_id %}<a href="/admin/tickets" class="cancelar">Cancelar edición</a>{% endif %}
+        </form>
+    </details>
+    <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
+    <h2>Solicitudes registradas</h2>
+    <a href="/admin/tickets/excel" class="boton">Descargar Software V2.xlsx</a>
+    <div class="filtros">
+        <input id="buscar-ticket" type="search" placeholder="Buscar por número, SAP, tienda o equipo" aria-label="Buscar solicitudes">
+        <select id="filtro-estado" aria-label="Estado del servicio"><option value="">Todos los servicios</option><option value="PENDIENTE">Pendientes</option><option value="REALIZADO">Realizados</option></select>
+        <select id="filtro-numero" aria-label="Número de ticket"><option value="">Todos los tickets</option><option value="000">Faltante por número de ticket</option></select>
+    </div>
+    <p id="sin-resultados" hidden>No hay solicitudes con esos filtros.</p>
+    {% for ticket in tickets %}
+    <article class="solicitud" data-estado="{{ ticket.estado }}" data-numero="{{ ticket.numero }}">
+        <h3>Solicitud #{{ ticket.id }} · Ticket {{ ticket.numero }}</h3>
+        <a href="/admin/tickets/{{ ticket.id }}/editar" class="boton">Editar solicitud</a>
+        {% if ticket.token %}
+            {% if ticket.estado_enlace == 'PENDIENTE' and ticket.estado == 'PENDIENTE' %}
+            <label for="enlace-{{ ticket.id }}">Enlace del técnico · un solo uso · vigencia de 24 horas</label>
+            <input id="enlace-{{ ticket.id }}" value="{{ request.url_for('acceso_servicio_externo', token=ticket.token) }}" readonly>
+            <button type="button" class="boton copiar-enlace-ticket" data-campo="enlace-{{ ticket.id }}">Copiar enlace</button>
+            <p class="resultado-copia" role="status"></p>
+            {% else %}<p>El enlace ya no está disponible. Editar la solicitud no lo reactiva.</p>{% endif %}
+        {% elif ticket.estado == 'PENDIENTE' %}
+            <form action="/admin/tickets/{{ ticket.id }}/enlace" method="post"><button class="boton" type="submit">Generar enlace para esta solicitud</button></form>
+        {% endif %}
+        {% if ticket.numero == '000' %}<p class="sin-numero"><strong>Faltante por número de ticket</strong></p>{% endif %}
+        {% if ticket.precio is none %}
+        <p class="sin-numero"><strong>Falta precio</strong></p>
+        {% else %}
+        <p><strong>Precio:</strong> {{ "{:,.2f}".format(ticket.precio) }}</p>
+        {% endif %}
+        <details><summary>{{ 'Agregar precio' if ticket.precio is none else 'Modificar precio' }}</summary>
+            <form action="/admin/tickets/{{ ticket.id }}/precio" method="post">
+                <label for="precio-{{ ticket.id }}">Precio del ticket</label>
+                <input type="number" id="precio-{{ ticket.id }}" name="precio" min="0" max="9999999999.99" step="0.01" value="{{ ticket.precio if ticket.precio is not none else '' }}" required>
+                <button class="boton" type="submit">Guardar precio</button>
+            </form>
+        </details>
+        <form action="/admin/tickets/{{ ticket.id }}/eliminar" method="post" class="eliminar-ticket">
+            <button class="boton" type="submit">Eliminar ticket</button>
+        </form>
+        <p><strong>Servicio:</strong> {{ 'Realizado' if ticket.estado == 'REALIZADO' else 'Pendiente' }} · <strong>Prioridad:</strong> {{ ticket.prioridad }}</p>
+        <p><strong>Tienda:</strong> {{ ticket.tienda }} — {{ ticket.sap }}</p>
+        <p><strong>Equipo:</strong> {{ ticket.equipo }}</p>
+        <p><strong>Fecha reporte:</strong> {{ ticket.fecha_reporte.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p class="descripcion-ticket">{{ ticket.descripcion }}</p>
+        {% if ticket.servicio_id %}<p><strong>Servicio #{{ ticket.servicio_id }}:</strong> {{ ticket.tecnico }} · {{ ticket.fecha_realizado }}</p>{% endif %}
+        {% if ticket.telefono_tecnico %}<p><strong>Teléfono del técnico:</strong> {{ ticket.telefono_tecnico }}</p>{% endif %}
+        <details><summary>Información completa</summary>
+            {% for campo, etiqueta in [('contacto','Contacto'), ('direccion','Dirección'), ('telefonos','Teléfono / celular'), ('ciudad','Ciudad'), ('registrado_por','Registrado por'), ('coordinador','Coordinador'), ('codigo','Código')] %}
+            <p><strong>{{ etiqueta }}:</strong> {{ ticket[campo] or 'No registrado' }}</p>
+            {% endfor %}
+        </details>
+        {% if ticket.numero == '000' %}
+        <form action="/admin/tickets/{{ ticket.id }}/numero" method="post">
+            <label for="numero-{{ ticket.id }}">Asignar número real de ticket</label>
+            <input id="numero-{{ ticket.id }}" name="numero" maxlength="100" placeholder="Número recibido por la oficina" required>
+            <button class="boton" type="submit">Asignar número</button>
+        </form>
+        {% endif %}
+    </article>
+    {% else %}<p>Todavía no hay solicitudes registradas.</p>{% endfor %}
+    <a class="cancelar" href="{{ '/admin/panel' if request.session.get('admin_autenticado') else '/panel-operador' }}">Volver al panel</a>
+</div></main>
+<script src="/static/js/tickets_oficina.js"></script>
+</body></html>

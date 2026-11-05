@@ -196,11 +196,22 @@
 
 
             <!-- FORMULARIO -->
+            {% if solicitud_vinculada %}
+            <div class="datos-tienda">
+                <h2>Servicio a realizar</h2>
+                <p><strong>Equipo:</strong> {{ solicitud_vinculada.equipo }}</p>
+                <p style="white-space:pre-wrap;">{{ solicitud_vinculada.descripcion }}</p>
+                <p>Si los datos no son correctos, solicita su corrección a la oficina.</p>
+            </div>
+            {% endif %}
+            {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
 
             <form
                 action="/s/{{ token }}/guardar-servicio"
                 method="post"
                 class="formulario-servicio"
+                id="formulario-servicio"
+                data-validar-ticket="/s/{{ token }}/verificar-ticket"
             >
 
 
@@ -234,6 +245,9 @@
                             type="text"
                             id="ticket"
                             name="ticket"
+                            maxlength="100"
+                            value="{{ solicitud_vinculada.numero if solicitud_vinculada else valores.get('ticket', '') if valores is defined else '' }}"
+                            readonly
                             required
                         >
 
@@ -344,6 +358,13 @@
                             required
                         >
 
+                    </div>
+
+                    <div class="campo">
+                        <label for="telefono_tecnico">Teléfono / celular del técnico *</label>
+                        <input type="tel" id="telefono_tecnico" name="telefono_tecnico"
+                               autocomplete="tel" maxlength="30" required
+                               placeholder="Ej. 3112104557">
                     </div>
 
                 </div>
@@ -535,6 +556,9 @@
 
     </main>
 
+
+    <script id="valores-servicio" type="application/json">{{ valores | default({}) | tojson }}</script>
+    <script src="/static/js/ticket_servicio.js"></script>
 
     <!-- =============================== -->
     <!-- JAVASCRIPT -->

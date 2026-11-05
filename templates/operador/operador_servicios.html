@@ -126,6 +126,9 @@
                                 <strong>Cédula:</strong>
                                 {{ servicio.cedula_tecnico }}
                             </p>
+                            {% if servicio.telefono_tecnico %}
+                            <p><strong>Teléfono del técnico:</strong> {{ servicio.telefono_tecnico }}</p>
+                            {% endif %}
 
                             <p>
                                 <strong>Realizado:</strong>

@@ -5,10 +5,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from correo import enviar_codigo
 from excel_drive import sincronizar_excel_seguro
+from excel_tickets import generar_excel_tickets, NOMBRE_ARCHIVO as NOMBRE_EXCEL_TICKETS
+from fastapi.responses import StreamingResponse
 from database.database import (
     crear_base_datos,
     obtener_tecnicos,
@@ -31,7 +33,16 @@ from database.database import (
     eliminar_servicio_prueba,
     anular_servicio_real,
     obtener_tienda_por_id,
-    obtener_servicios
+    obtener_servicios,
+    registrar_ticket,
+    obtener_tickets,
+    consultar_ticket_servicio,
+    asignar_numero_ticket,
+    obtener_solicitud_enlace,
+    editar_ticket,
+    generar_enlace_ticket,
+    actualizar_precio_ticket,
+    eliminar_ticket
 )   
 
 
@@ -102,6 +113,11 @@ async def proteger_rutas_admin(request: Request, call_next):
     )
 
     if operador_autenticado:
+
+        if ruta == "/admin/tickets" or ruta.startswith("/admin/tickets/"):
+            if sesion_operador_valida(request):
+                return await call_next(request)
+            return RedirectResponse(url="/tecnico", status_code=303)
 
         # El operador únicamente puede entrar a esta sección
         # y a las rutas que cuelgan de ella.
@@ -538,13 +554,18 @@ def acceso_servicio_externo(
             status_code=403
         )
 
-    return templates.TemplateResponse(
-        request=request,
-        name="externo/acceso.html",
-        context={
-            "token": token
-        }
-    )
+    solicitud = obtener_solicitud_enlace(token)
+    if solicitud:
+        try:
+            consultar_ticket_servicio(solicitud["numero"], solicitud["sap"])
+        except ValueError as error:
+            return templates.TemplateResponse(request=request, name="externo/enlace_invalido.html",
+                context={"error": str(error)}, status_code=403)
+        return templates.TemplateResponse(request=request, name="externo/formulario.html",
+            context={"token": token, "tienda": solicitud["tienda"], "solicitud_vinculada": solicitud,
+                     "valores": {"ticket": solicitud["numero"], "ticket_solicitud_id": solicitud["id"]}})
+    return templates.TemplateResponse(request=request, name="externo/enlace_invalido.html",
+        context={"error": "Solicita a la oficina el enlace asociado a tu ticket."}, status_code=403)
 
 
 # =========================================================
@@ -919,80 +940,8 @@ def cancelar_acceso_externo(id_enlace: int):
 # ==========================================================
 
 @app.post("/s/{token}/verificar-tienda")
-def verificar_tienda_externa(
-    request: Request,
-    token: str,
-    sap: str = Form(...)
-    ):
-
-    # Primero verificamos que el enlace exista
-    enlace = obtener_enlace_externo(token)
-
-    if enlace is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            status_code=404
-        )
-
-    # Verificamos que el enlace siga disponible
-    if enlace.estado != "PENDIENTE":
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            status_code=403
-        )
-
-    # Verificar que el enlace no haya superado las 24 horas
-    if enlace_externo_vencido(enlace):
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ha vencido. Solicita uno nuevo."
-            },
-            status_code=403
-        )
-
-    # Limpiamos el SAP ingresado
-    sap = sap.strip()
-
-    # Consultamos PostgreSQL
-    tienda = obtener_tienda_por_sap(sap)
-
-    # Si la tienda no existe
-    if tienda is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/acceso.html",
-            context={
-                "token": token,
-                "sap_ingresado": sap,
-                "error": "La tienda ingresada no está registrada en el sistema."
-            }
-        )
-
-    # Si está desactivada
-    if not tienda.activo:
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/acceso.html",
-            context={
-                "token": token,
-                "sap_ingresado": sap,
-                "error": "Esta tienda se encuentra deshabilitada."
-            }
-        )
-
-    # Tienda encontrada
-    return templates.TemplateResponse(
-        request=request,
-        name="externo/acceso.html",
-        context={
-            "token": token,
-            "tienda": tienda
-        }
-    )
+def verificar_tienda_externa(request: Request, token: str, sap: str = Form(...)):
+    return acceso_servicio_externo(request, token)
 
 
 # ==========================================================
@@ -1071,59 +1020,8 @@ def generar_enlace_externo_operador(
 # ==========================================================
 
 @app.post("/s/{token}/formulario")
-def formulario_servicio_externo(
-    request: Request,
-    token: str,
-    sap: str = Form(...)
-    ):
-
-    # Verificar nuevamente el enlace
-    enlace = obtener_enlace_externo(token)
-
-    if enlace is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            status_code=404
-        )
-
-    if enlace.estado != "PENDIENTE":
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            status_code=403
-        )
-
-    # Verificar que el enlace no haya superado las 24 horas
-    if enlace_externo_vencido(enlace):
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ha vencido. Solicita uno nuevo."
-            },
-            status_code=403
-        )
-
-    # IMPORTANTE:
-    # No confiamos solamente en el SAP enviado por el navegador.
-    # Volvemos a comprobarlo en PostgreSQL.
-    tienda = obtener_tienda_por_sap(sap)
-
-    if tienda is None or not tienda.activo:
-        return RedirectResponse(
-            url=f"/s/{token}",
-            status_code=303
-        )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="externo/formulario.html",
-        context={
-            "token": token,
-            "tienda": tienda
-        }
-    )
+def formulario_servicio_externo(request: Request, token: str, sap: str = Form(...)):
+    return acceso_servicio_externo(request, token)
 
 
 @app.get("/admin/agregar")
@@ -1535,6 +1433,7 @@ def guardar_servicio_externo(
 
     cedula_tecnico: str = Form(...),
     nombre_tecnico: str = Form(...),
+    telefono_tecnico: str = Form(...),
 
     sap_encargado: str = Form(...),
     nombre_encargado: str = Form(...),
@@ -1545,8 +1444,11 @@ def guardar_servicio_externo(
     observaciones: str = Form(""),
 
     suministro_repuestos: str = Form(...),
-    repuestos_suministrados: str = Form("")
+    repuestos_suministrados: str = Form(""),
+    ticket_solicitud_id: int | None = Form(None)
 ):
+
+    valores = {k: v for k, v in locals().items() if k not in ("request", "token")}
 
     # ==========================================================
     # 1. VERIFICAR EL ENLACE
@@ -1602,7 +1504,10 @@ def guardar_servicio_externo(
                 name="externo/formulario.html",
                 context={
                     "error": "Debes indicar cuál es el tipo de servicio.",
-                    "enlace": enlace
+                    "token": token,
+                    "tienda": obtener_tienda_por_sap(sap_tienda),
+                    "valores": valores,
+                    "solicitud_vinculada": obtener_solicitud_enlace(token)
                 },
                 status_code=400
             )
@@ -1624,6 +1529,7 @@ def guardar_servicio_externo(
 
             cedula_tecnico=cedula_tecnico,
             nombre_tecnico=nombre_tecnico,
+            telefono_tecnico=telefono_tecnico,
 
             sap_encargado=sap_encargado,
             nombre_encargado=nombre_encargado,
@@ -1636,7 +1542,8 @@ def guardar_servicio_externo(
             suministro_repuestos=suministro_repuestos,
             repuestos_suministrados=repuestos_suministrados,
 
-            tipo_registro=enlace.tipo_registro
+            tipo_registro=enlace.tipo_registro,
+            ticket_solicitud_id=ticket_solicitud_id
         )
 
         # ======================================================
@@ -1664,9 +1571,13 @@ def guardar_servicio_externo(
 
         return templates.TemplateResponse(
             request=request,
-            name="externo/enlace_invalido.html",
+            name="externo/formulario.html",
             context={
-                "error": str(error)
+                "error": str(error),
+                "token": token,
+                "tienda": obtener_tienda_por_sap(sap_tienda),
+                "valores": valores,
+                "solicitud_vinculada": obtener_solicitud_enlace(token)
             },
             status_code=400
         )
@@ -1765,4 +1676,143 @@ def cambiar_estado_tienda_admin(
     return RedirectResponse(
         url="/admin/tiendas",
         status_code=303
+    )
+
+
+# Registro de solicitudes de la oficina; protegido por el middleware /admin.
+def pagina_tickets(request, error=None, valores=None, status_code=200, editar_id=None):
+    tickets = obtener_tickets()
+    return templates.TemplateResponse(
+        request=request, name="admin/admin_tickets.html",
+        context={"tickets": tickets, "error": error, "valores": valores or {}, "editar_id": editar_id,
+                 "pendientes": sum(t["estado"] == "PENDIENTE" for t in tickets),
+                 "realizados": sum(t["estado"] == "REALIZADO" for t in tickets),
+                 "sin_numero": sum(t["numero"] == "000" for t in tickets)},
+        status_code=status_code
+    )
+
+
+@app.get("/admin/tickets")
+def listar_tickets(request: Request):
+    return pagina_tickets(request)
+
+
+@app.get("/admin/tickets/tienda")
+def consultar_tienda_ticket(sap: str):
+    tienda = obtener_tienda_por_sap(sap)
+    if tienda is None or not tienda.activo:
+        return JSONResponse({"error": "No existe una tienda activa con ese SAP."}, status_code=404)
+    return {"sap": tienda.sap, "nombre": tienda.nombre,
+            "direccion": tienda.direccion or "", "ciudad": tienda.ciudad or ""}
+
+
+@app.post("/admin/tickets")
+def crear_ticket_oficina(
+    request: Request, numero: str = Form(...), sap_tienda: str = Form(...),
+    prioridad: str = Form(...), fecha_reporte: str = Form(...),
+    equipo: str = Form(...), descripcion: str = Form(...),
+    contacto: str = Form(""), telefonos: str = Form(""),
+    registrado_por: str = Form(""), coordinador: str = Form(""), codigo: str = Form("")
+):
+    valores = {k: v for k, v in locals().items() if k != "request"}
+    try:
+        registrar_ticket(**valores)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), valores, 400)
+    sincronizar_excel_seguro()
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/numero")
+def completar_numero_ticket(request: Request, solicitud_id: int, numero: str = Form(...)):
+    try:
+        asignar_numero_ticket(solicitud_id, numero)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    sincronizar_excel_seguro()
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.get("/s/{token}/verificar-ticket")
+def verificar_ticket_externo(token: str, numero: str, sap: str):
+    enlace = obtener_enlace_externo(token)
+    if enlace is None or enlace.estado != "PENDIENTE" or enlace_externo_vencido(enlace):
+        return JSONResponse({"error": "Este enlace ya no está disponible."}, status_code=403)
+    try:
+        solicitud = obtener_solicitud_enlace(token)
+        if solicitud and (solicitud["numero"] != numero.strip().upper() or solicitud["sap"] != sap.strip()):
+            raise ValueError("Los datos del ticket cambiaron o no corresponden al enlace. Vuelve a abrir el enlace.")
+        solicitudes = consultar_ticket_servicio(numero, sap)
+        if solicitud:
+            solicitudes = [s for s in solicitudes if s["id"] == solicitud["id"]]
+            if not solicitudes:
+                raise ValueError("Esta solicitud ya no está pendiente.")
+        return {"solicitudes": solicitudes}
+    except ValueError as error:
+        return JSONResponse({"error": str(error)}, status_code=400)
+
+
+@app.get("/admin/tickets/{solicitud_id}/editar")
+def pagina_editar_ticket(request: Request, solicitud_id: int):
+    ticket = next((t for t in obtener_tickets() if t["id"] == solicitud_id), None)
+    if ticket is None:
+        return pagina_tickets(request, "La solicitud no existe.", status_code=404)
+    valores = dict(ticket, sap_tienda=ticket["sap"], fecha_reporte=ticket["fecha_reporte"].isoformat())
+    return pagina_tickets(request, valores=valores, editar_id=solicitud_id)
+
+
+@app.post("/admin/tickets/{solicitud_id}/editar")
+def guardar_edicion_ticket(
+    request: Request, solicitud_id: int, numero: str = Form(...), sap_tienda: str = Form(...),
+    prioridad: str = Form(...), fecha_reporte: str = Form(...), equipo: str = Form(...),
+    descripcion: str = Form(...), contacto: str = Form(""), telefonos: str = Form(""),
+    registrado_por: str = Form(""), coordinador: str = Form(""), codigo: str = Form("")
+):
+    valores = {k: v for k, v in locals().items() if k not in ("request", "solicitud_id")}
+    try:
+        editar_ticket(solicitud_id, **valores)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), valores, 400, editar_id=solicitud_id)
+    sincronizar_excel_seguro()
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/enlace")
+def crear_enlace_solicitud_anterior(request: Request, solicitud_id: int):
+    try:
+        generar_enlace_ticket(solicitud_id)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/precio")
+def guardar_precio_ticket(request: Request, solicitud_id: int, precio: str = Form(...)):
+    try:
+        actualizar_precio_ticket(solicitud_id, precio)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    sincronizar_excel_seguro()
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/eliminar")
+def borrar_ticket(request: Request, solicitud_id: int):
+    try:
+        eliminar_ticket(solicitud_id)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    sincronizar_excel_seguro()
+    return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.get("/admin/tickets/excel")
+def descargar_excel_tickets(request: Request):
+    return StreamingResponse(
+        generar_excel_tickets(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{NOMBRE_EXCEL_TICKETS}"',
+            "Cache-Control": "no-store",
+        },
     )

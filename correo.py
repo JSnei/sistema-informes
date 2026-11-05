@@ -1,5 +1,8 @@
 import os
 import resend
+import time
+import uuid
+from resend.exceptions import ResendError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,4 +37,18 @@ BS Electromecánica S.A.S.
 """,
     }
 
-    return resend.Emails.send(params)
+    # Una clave por operación: todos sus reintentos representan el mismo correo.
+    opciones = {"idempotency_key": str(uuid.uuid4())}
+    for intento in range(3):
+        try:
+            return resend.Emails.send(params, opciones)
+        except ResendError as error:
+            # Credenciales, destinatarios y otros errores permanentes no se reintentan.
+            estado = getattr(error, "code", None)
+            try:
+                temporal = int(estado) >= 500 or int(estado) in (408, 429)
+            except (TypeError, ValueError):
+                temporal = False
+            if not temporal or intento == 2:
+                raise
+            time.sleep(1 + intento)

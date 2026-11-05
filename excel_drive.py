@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 from database.database import obtener_servicios_para_excel
+from excel_tickets import generar_excel_tickets, NOMBRE_ARCHIVO as NOMBRE_TICKETS
 
 
 # ==========================================================
@@ -63,6 +64,7 @@ def generar_excel_servicios():
         "¿Suministró Repuestos?",
         "Repuestos Suministrados",
         "Estado",
+        "Teléfono Técnico",
     ]
 
     hoja.append(encabezados)
@@ -99,6 +101,7 @@ def generar_excel_servicios():
             servicio["suministro_repuestos"],
             servicio["repuestos_suministrados"],
             servicio["estado"],
+            servicio["telefono_tecnico"],
         ])
 
     hoja.freeze_panes = "A2"
@@ -161,10 +164,10 @@ def obtener_drive():
 # SUBIR O ACTUALIZAR SERVICIOS.XLSX
 # ==========================================================
 
-def sincronizar_excel_drive():
+def sincronizar_excel_drive(nombre_archivo=NOMBRE_ARCHIVO, generador=generar_excel_servicios):
 
     drive = obtener_drive()
-    archivo = generar_excel_servicios()
+    archivo = generador()
 
     media = MediaIoBaseUpload(
         archivo,
@@ -176,7 +179,7 @@ def sincronizar_excel_drive():
     )
 
     consulta = (
-        f"name='{NOMBRE_ARCHIVO}' "
+        f"name='{nombre_archivo}' "
         f"and '{GOOGLE_DRIVE_FOLDER_ID}' in parents "
         "and trashed=false"
     )
@@ -205,7 +208,7 @@ def sincronizar_excel_drive():
 
     # Si todavía no existe, lo creamos.
     metadata = {
-        "name": NOMBRE_ARCHIVO,
+        "name": nombre_archivo,
         "parents": [GOOGLE_DRIVE_FOLDER_ID]
     }
 
@@ -226,22 +229,15 @@ def sincronizar_excel_drive():
 # ==========================================================
 
 def sincronizar_excel_seguro():
-
-    try:
-        resultado = sincronizar_excel_drive()
-
-        print(
-            f"Excel Drive sincronizado: "
-            f"{resultado['accion']}"
-        )
-
-        return True
-
-    except Exception as error:
-
-        print(
-            f"ADVERTENCIA: No se pudo sincronizar "
-            f"Servicios.xlsx con Google Drive: {error}"
-        )
-
-        return False
+    correcto = True
+    for nombre, generador in (
+        (NOMBRE_ARCHIVO, generar_excel_servicios),
+        (NOMBRE_TICKETS, generar_excel_tickets),
+    ):
+        try:
+            resultado = sincronizar_excel_drive(nombre, generador)
+            print(f"Excel Drive sincronizado: {nombre}: {resultado['accion']}")
+        except Exception as error:
+            print(f"ADVERTENCIA: No se pudo sincronizar {nombre}: {error}")
+            correcto = False
+    return correcto
