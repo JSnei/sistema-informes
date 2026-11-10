@@ -103,6 +103,9 @@ def generar_excel_servicios():
             servicio["estado"],
             servicio["telefono_tecnico"],
         ])
+        for celda in hoja[hoja.max_row]:
+            if isinstance(celda.value, str):
+                celda.data_type = "s"
 
     hoja.freeze_panes = "A2"
     hoja.auto_filter.ref = hoja.dimensions

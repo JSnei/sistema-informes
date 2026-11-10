@@ -37,7 +37,7 @@ class TicketsTest(unittest.TestCase):
                 db.Tienda(sap="1232", nombre="Inactiva", activo=False)
             ])
             session.commit()
-        self.client = TestClient(self.main.app)
+        self.client = TestClient(self.main.app, base_url="https://testserver")
 
     def tearDown(self):
         self.client.close()
@@ -76,6 +76,48 @@ class TicketsTest(unittest.TestCase):
             trabajo_realizado="Reparación", observaciones="", suministro_repuestos="NO",
             repuestos_suministrados="", ticket_solicitud_id=solicitud
         )
+
+    def test_renovar_enlace_invalida_anterior_y_conserva_ticket(self):
+        solicitud = self.registrar("000")
+        db.actualizar_precio_ticket(solicitud, "150000")
+        original = db.obtener_tickets()[0]
+        anterior = original["token"]
+        ruta = f"/admin/tickets/{solicitud}/renovar-enlace"
+        self.assertEqual(self.client.post(ruta, follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_tickets()[0]["token"], anterior)
+        self.autenticar(operador=True)
+        self.assertEqual(self.client.post(ruta, follow_redirects=False).status_code, 303)
+        actualizado = db.obtener_tickets()[0]
+        nuevo = actualizado["token"]
+        self.assertNotEqual(nuevo, anterior)
+        for campo in ("id", "numero", "sap", "equipo", "descripcion", "precio", "estado"):
+            self.assertEqual(actualizado[campo], original[campo])
+        self.assertIsNone(db.obtener_enlace_externo(anterior))
+        self.assertEqual(self.client.get(f"/s/{anterior}").status_code, 404)
+        self.assertEqual(self.client.get(f"/s/{anterior}/verificar-ticket?numero=000&sap=1230").status_code, 403)
+        self.assertEqual(self.client.get(f"/s/{nuevo}").status_code, 200)
+        datos = dict(sap_tienda="1230", ticket="000", tipo_servicio="CORRECTIVO",
+            cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
+            sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
+            trabajo_realizado="Reparación", suministro_repuestos="NO")
+        self.assertEqual(self.client.post(f"/s/{anterior}/guardar-servicio", data=datos).status_code, 404)
+        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos).status_code, 200)
+        self.assertEqual(self.client.post(ruta).status_code, 400)
+        self.assertEqual(db.obtener_tickets()[0]["token"], nuevo)
+        self.assertEqual(self.client.get(f"/s/{nuevo}").status_code, 403)
+        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos).status_code, 403)
+
+    def test_renovar_enlace_cancelado(self):
+        solicitud = self.registrar()
+        viejo = db.obtener_tickets()[0]["token"]
+        db.cancelar_enlace_externo(db.obtener_enlace_externo(viejo).id)
+        db.renovar_enlace_ticket(solicitud)
+        nuevo = db.obtener_tickets()[0]["token"]
+        self.assertNotEqual(nuevo, viejo)
+        self.assertEqual(self.client.get(f"/s/{viejo}").status_code, 404)
+        self.assertEqual(self.client.get(f"/s/{nuevo}").status_code, 200)
+        with self.assertRaises(ValueError):
+            db.renovar_enlace_ticket(99999)
 
     def test_validaciones_y_realizado(self):
         self.registrar()
@@ -148,7 +190,7 @@ class TicketsTest(unittest.TestCase):
             enlace = session.query(db.EnlaceExterno).filter_by(token="externo").one()
             enlace.fecha_creacion = datetime.now(timezone.utc) - timedelta(hours=25)
             session.commit()
-        self.assertEqual(self.client.get("/s/externo/verificar-ticket?numero=000&sap=1230").status_code, 403)
+        self.assertEqual(self.client.get("/s/externo/verificar-ticket?numero=000&sap=1230").status_code, 200)
         db.crear_enlace_externo("guardar")
         datos = dict(sap_tienda="1230", ticket="000", tipo_servicio="CORRECTIVO", cedula_tecnico="123",
                      nombre_tecnico="Técnico", telefono_tecnico="3112104557", sap_encargado="456", nombre_encargado="Encargado",
@@ -166,6 +208,10 @@ class TicketsTest(unittest.TestCase):
         ticket = next(t for t in db.obtener_tickets() if t["id"] == primero)
         token = ticket["token"]
         self.assertTrue(token)
+        with self.sessions() as session:
+            enlace = session.query(db.EnlaceExterno).filter_by(token=token).one()
+            enlace.fecha_creacion = datetime.now(timezone.utc) - timedelta(days=365)
+            session.commit()
         respuesta = self.client.get(f"/s/{token}")
         self.assertEqual(respuesta.status_code, 200)
         self.assertIn('id="formulario-servicio"', respuesta.text)
@@ -185,6 +231,11 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos_servicio).status_code, 403)
         self.assertEqual(self.client.get(f"/s/{token}").status_code, 403)
         self.assertEqual(self.client.get(f"/s/{token}/verificar-ticket?numero=000&sap=1230").status_code, 403)
+        # Un enlace antiguo cancelado tampoco se vuelve válido.
+        otro_token = next(t["token"] for t in db.obtener_tickets() if t["id"] == segundo)
+        otro_enlace = db.obtener_enlace_externo(otro_token)
+        db.cancelar_enlace_externo(otro_enlace.id)
+        self.assertEqual(self.client.get(f"/s/{otro_token}").status_code, 403)
         db.editar_ticket(primero, **self.datos("1294255", "1231"))
         self.assertEqual(self.client.get(f"/s/{token}").status_code, 403)
         with self.sessions() as session:
@@ -251,6 +302,51 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 200)
         self.assertEqual(db.obtener_servicios()[0]["telefono_tecnico"], "+57 311 2104557")
         self.assertEqual(db.obtener_servicios_para_excel()[0]["telefono_tecnico"], "+57 311 2104557")
+
+    def test_editar_informe_del_tecnico(self):
+        solicitud = self.registrar()
+        token = db.obtener_tickets()[0]["token"]
+        datos = dict(sap_tienda="1230", ticket="1294255", tipo_servicio="CORRECTIVO",
+            cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
+            sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
+            trabajo_realizado="Reparación", suministro_repuestos="NO")
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 200)
+        ruta = f"/admin/tickets/{solicitud}/informe/editar"
+        original = db.obtener_informe_ticket(solicitud)
+        self.assertEqual(self.client.get(ruta, follow_redirects=False).status_code, 303)
+        self.assertEqual(self.client.post(ruta, data=original, follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_informe_ticket(solicitud), original)
+        self.autenticar(operador=True)
+        self.assertEqual(self.client.get(ruta).status_code, 200)
+        corregido = dict(original, cedula_tecnico="999", nombre_tecnico="Nombre corregido",
+            telefono_tecnico="+57 314 3419538", tipo_servicio="PREVENTIVO", sap_encargado="888",
+            nombre_encargado="Otra persona", descripcion_falla="Falla corregida",
+            trabajo_realizado="Trabajo corregido", observaciones="Observación corregida",
+            suministro_repuestos="SI", repuestos_suministrados="Contactor")
+        self.assertEqual(self.client.post(ruta, data=dict(corregido, ticket="OTRO", estado="PENDIENTE"), follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_informe_ticket(solicitud), corregido)
+        exportado = db.obtener_servicios_para_excel()[0]
+        self.assertEqual(exportado["trabajo_realizado"], "Trabajo corregido")
+        self.assertEqual(exportado["nombre_tecnico"], "Nombre corregido")
+        self.assertEqual(exportado["ticket"], "1294255")
+        self.assertEqual(db.obtener_tickets()[0]["estado"], "REALIZADO")
+        self.assertEqual(db.obtener_tickets()[0]["token"], token)
+        self.assertEqual(self.client.get(f"/s/{token}").status_code, 403)
+        self.assertEqual(self.client.post(ruta, data=dict(corregido, repuestos_suministrados="")).status_code, 400)
+        self.assertEqual(self.client.post(ruta, data=dict(corregido, telefono_tecnico="abc")).status_code, 400)
+        self.assertEqual(db.obtener_informe_ticket(solicitud), corregido)
+        self.assertEqual(self.client.post(ruta, data=dict(corregido, suministro_repuestos="NO"), follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_informe_ticket(solicitud)["repuestos_suministrados"], "")
+
+    def test_informe_pendiente_o_anulado_no_se_edita(self):
+        solicitud = self.registrar()
+        self.autenticar()
+        ruta = f"/admin/tickets/{solicitud}/informe/editar"
+        self.assertEqual(self.client.get(ruta).status_code, 404)
+        servicio_id = self.servicio()
+        self.assertEqual(self.client.get(ruta).status_code, 200)
+        db.anular_servicio_real(servicio_id)
+        self.assertEqual(self.client.get(ruta).status_code, 404)
 
     def test_actualizar_base_existente_conserva_servicios(self):
         antigua = create_engine("sqlite://")

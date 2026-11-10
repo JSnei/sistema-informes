@@ -8,9 +8,14 @@
     <style>
         .contenedor { max-width: 1000px; }
         .resumen, .filtros { display:flex; flex-wrap:wrap; gap:12px; margin:20px 0; }
-        .resumen span { background:#f4f6f8; border-radius:8px; padding:12px; }
+        .resumen button { background:#f4f6f8; color:#222; border:1px solid transparent; border-radius:8px; padding:12px; font:inherit; cursor:pointer; }
+        .resumen button:hover { background:#e8edf2; }
+        .resumen button[aria-pressed="true"] { background:#111; color:#fff; }
+        .resumen button:focus-visible { outline:3px solid #b58b00; outline-offset:3px; }
         .campos-ticket { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
         .solicitud { border:1px solid #ddd; border-radius:10px; padding:20px; margin:18px 0; }
+        .solicitud[data-estado="REALIZADO"] { background:#e8f5e9; border-color:#66a875; }
+        .solicitud[data-estado="PENDIENTE"] { background:#fff3e0; border-color:#e5a24b; }
         .solicitud p { margin:8px 0; overflow-wrap:anywhere; }
         .descripcion-ticket { white-space:pre-wrap; }
         .sin-numero { color:#8a4b00; background:#fff3cd; padding:8px; border-radius:6px; }
@@ -24,11 +29,13 @@
     <div class="logo"><img src="/static/img/logo.png" alt="BS Electromecánica"></div>
     <div class="bienvenida"><h1>Tickets y solicitudes</h1><p>Registra las solicitudes de la oficina y consulta su avance.</p></div>
     {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
-    <div class="resumen">
-        <span><strong>{{ pendientes }}</strong> pendientes</span>
-        <span><strong>{{ realizados }}</strong> realizados</span>
-        <span><strong>{{ sin_numero }}</strong> sin número de ticket</span>
-    </div>
+    <form class="resumen" action="/admin/tickets#listado-tickets" method="get" aria-label="Filtrar solicitudes">
+        <button type="submit" name="filtro" value="todos" aria-pressed="{{ 'true' if filtro_activo == 'todos' else 'false' }}">Todos</button>
+        <button type="submit" name="filtro" value="pendientes" aria-pressed="{{ 'true' if filtro_activo == 'pendientes' else 'false' }}"><strong>{{ pendientes }}</strong> pendientes</button>
+        <button type="submit" name="filtro" value="realizados" aria-pressed="{{ 'true' if filtro_activo == 'realizados' else 'false' }}"><strong>{{ realizados }}</strong> realizados</button>
+        <button type="submit" name="filtro" value="sin-numero" aria-pressed="{{ 'true' if filtro_activo == 'sin-numero' else 'false' }}"><strong>{{ sin_numero }}</strong> sin número de ticket</button>
+        <button type="submit" name="filtro" value="sin-precio" aria-pressed="{{ 'true' if filtro_activo == 'sin-precio' else 'false' }}"><strong>{{ tickets | selectattr('precio', 'none') | list | length }}</strong> faltantes de precio</button>
+    </form>
     <details {% if valores %}open{% endif %}>
         <summary>{{ 'Editar solicitud #' ~ editar_id if editar_id else 'Registrar ticket o solicitud sin número' }}</summary>
         <form action="{{ '/admin/tickets/' ~ editar_id ~ '/editar' if editar_id else '/admin/tickets' }}" method="post" id="registro-ticket">
@@ -65,21 +72,36 @@
         </form>
     </details>
     <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
-    <h2>Solicitudes registradas</h2>
+    <h2 id="listado-tickets">{{ titulo_listado }}</h2>
     <a href="/admin/tickets/excel" class="boton">Descargar Software V2.xlsx</a>
     <div class="filtros">
         <input id="buscar-ticket" type="search" placeholder="Buscar por número, SAP, tienda o equipo" aria-label="Buscar solicitudes">
-        <select id="filtro-estado" aria-label="Estado del servicio"><option value="">Todos los servicios</option><option value="PENDIENTE">Pendientes</option><option value="REALIZADO">Realizados</option></select>
-        <select id="filtro-numero" aria-label="Número de ticket"><option value="">Todos los tickets</option><option value="000">Faltante por número de ticket</option></select>
     </div>
-    <p id="sin-resultados" hidden>No hay solicitudes con esos filtros.</p>
-    {% for ticket in tickets %}
-    <article class="solicitud" data-estado="{{ ticket.estado }}" data-numero="{{ ticket.numero }}">
+    <p id="sin-resultados" role="status" aria-live="polite" hidden>No hay solicitudes con esos filtros.</p>
+    {% for ticket in tickets_visibles %}
+    <article id="solicitud-{{ ticket.id }}" class="solicitud" data-estado="{{ ticket.estado }}" data-numero="{{ ticket.numero }}" data-sin-precio="{{ 'true' if ticket.precio is none else 'false' }}">
         <h3>Solicitud #{{ ticket.id }} · Ticket {{ ticket.numero }}</h3>
+        {% if ticket.precio is none %}
+        <p class="sin-numero"><strong>Falta precio</strong></p>
+        {% endif %}
+        <details><summary>{{ 'Agregar precio' if ticket.precio is none else 'Modificar precio' }}</summary>
+            <form action="/admin/tickets/{{ ticket.id }}/precio" method="post" class="formulario-precio">
+                <label for="precio-{{ ticket.id }}">Precio del ticket</label>
+                <input type="text" inputmode="decimal" id="precio-{{ ticket.id }}" class="precio-formateado"
+                       data-valor="{{ ticket.precio if ticket.precio is not none else '' }}"
+                       placeholder="Ej. 1'000.000" aria-describedby="ayuda-precio-{{ ticket.id }}" required>
+                <input type="hidden" name="precio" class="precio-valor">
+                <small id="ayuda-precio-{{ ticket.id }}">Separadores automáticos. Para centavos, usa coma: 1'000.000,50.</small>
+                <button class="boton" type="submit">Guardar precio</button>
+            </form>
+        </details>
         <a href="/admin/tickets/{{ ticket.id }}/editar" class="boton">Editar solicitud</a>
+        {% if ticket.servicio_id %}
+        <a href="/admin/tickets/{{ ticket.id }}/informe/editar" class="boton">Editar informe del técnico</a>
+        {% endif %}
         {% if ticket.token %}
             {% if ticket.estado_enlace == 'PENDIENTE' and ticket.estado == 'PENDIENTE' %}
-            <label for="enlace-{{ ticket.id }}">Enlace del técnico · un solo uso · vigencia de 24 horas</label>
+            <label for="enlace-{{ ticket.id }}">Enlace del técnico · un solo uso · sin vencimiento</label>
             <input id="enlace-{{ ticket.id }}" value="{{ request.url_for('acceso_servicio_externo', token=ticket.token) }}" readonly>
             <button type="button" class="boton copiar-enlace-ticket" data-campo="enlace-{{ ticket.id }}">Copiar enlace</button>
             <p class="resultado-copia" role="status"></p>
@@ -87,24 +109,22 @@
         {% elif ticket.estado == 'PENDIENTE' %}
             <form action="/admin/tickets/{{ ticket.id }}/enlace" method="post"><button class="boton" type="submit">Generar enlace para esta solicitud</button></form>
         {% endif %}
-        {% if ticket.numero == '000' %}<p class="sin-numero"><strong>Faltante por número de ticket</strong></p>{% endif %}
-        {% if ticket.precio is none %}
-        <p class="sin-numero"><strong>Falta precio</strong></p>
-        {% else %}
-        <p><strong>Precio:</strong> {{ "{:,.2f}".format(ticket.precio) }}</p>
+        {% if ticket.token and ticket.estado == 'PENDIENTE' and ticket.estado_enlace != 'UTILIZADO' %}
+        <form action="/admin/tickets/{{ ticket.id }}/renovar-enlace" method="post">
+            <button class="boton" type="submit">Generar nuevo enlace</button>
+            <small>Al generar uno nuevo, el enlace anterior dejará de funcionar.</small>
+        </form>
         {% endif %}
-        <details><summary>{{ 'Agregar precio' if ticket.precio is none else 'Modificar precio' }}</summary>
-            <form action="/admin/tickets/{{ ticket.id }}/precio" method="post">
-                <label for="precio-{{ ticket.id }}">Precio del ticket</label>
-                <input type="number" id="precio-{{ ticket.id }}" name="precio" min="0" max="9999999999.99" step="0.01" value="{{ ticket.precio if ticket.precio is not none else '' }}" required>
-                <button class="boton" type="submit">Guardar precio</button>
-            </form>
-        </details>
+        {% if ticket.numero == '000' %}<p class="sin-numero"><strong>Faltante por número de ticket</strong></p>{% endif %}
+        {% if ticket.precio is not none %}
+        <p><strong>Precio:</strong> <span data-precio-texto="{{ ticket.precio }}">{{ "{:,.2f}".format(ticket.precio) }}</span></p>
+        {% endif %}
         <form action="/admin/tickets/{{ ticket.id }}/eliminar" method="post" class="eliminar-ticket">
             <button class="boton" type="submit">Eliminar ticket</button>
         </form>
         <p><strong>Servicio:</strong> {{ 'Realizado' if ticket.estado == 'REALIZADO' else 'Pendiente' }} · <strong>Prioridad:</strong> {{ ticket.prioridad }}</p>
         <p><strong>Tienda:</strong> {{ ticket.tienda }} — {{ ticket.sap }}</p>
+        <p><strong>Tipo de tienda:</strong> {{ ticket.tipo_tienda or 'No registrado' }}</p>
         <p><strong>Equipo:</strong> {{ ticket.equipo }}</p>
         <p><strong>Fecha reporte:</strong> {{ ticket.fecha_reporte.strftime('%Y-%m-%d %H:%M:%S') }}</p>
         <p class="descripcion-ticket">{{ ticket.descripcion }}</p>
@@ -123,8 +143,8 @@
         </form>
         {% endif %}
     </article>
-    {% else %}<p>Todavía no hay solicitudes registradas.</p>{% endfor %}
+    {% else %}<p>No hay solicitudes en esta categoría.</p>{% endfor %}
     <a class="cancelar" href="{{ '/admin/panel' if request.session.get('admin_autenticado') else '/panel-operador' }}">Volver al panel</a>
 </div></main>
-<script src="/static/js/tickets_oficina.js"></script>
+<script src="/static/js/tickets_oficina.js?v=20261110-3"></script>
 </body></html>

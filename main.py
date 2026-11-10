@@ -1,5 +1,4 @@
 import os   
-import secrets
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, Form
@@ -7,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
+from auth_codes import crear_codigo, comprobar_codigo, invalidar_codigo
 from correo import enviar_codigo
 from excel_drive import sincronizar_excel_seguro
 from excel_tickets import generar_excel_tickets, NOMBRE_ARCHIVO as NOMBRE_EXCEL_TICKETS
@@ -20,9 +20,7 @@ from database.database import (
     cambiar_estado_tecnico,
     eliminar_tecnico,
     obtener_tecnico_por_credencial,
-    crear_enlace_externo,
     obtener_enlace_externo,
-    obtener_enlaces_externos,
     cancelar_enlace_externo,
     obtener_tienda_por_sap,
     obtener_tiendas,
@@ -41,18 +39,16 @@ from database.database import (
     obtener_solicitud_enlace,
     editar_ticket,
     generar_enlace_ticket,
+    renovar_enlace_ticket,
+    obtener_informe_ticket,
+    editar_informe_ticket,
     actualizar_precio_ticket,
     eliminar_ticket
 )   
 
 
 load_dotenv()
-codigo_admin = {
-    "codigo": None,
-    "expira": None,
-    "ultimo_envio": None,
-    "intentos": 0
-}
+codigo_administradores = {}
 
 codigo_tecnicos = {}
 
@@ -114,6 +110,9 @@ async def proteger_rutas_admin(request: Request, call_next):
 
     if operador_autenticado:
 
+        if not sesion_operador_valida(request):
+            return RedirectResponse(url="/tecnico", status_code=303)
+
         if ruta == "/admin/tickets" or ruta.startswith("/admin/tickets/"):
             if sesion_operador_valida(request):
                 return await call_next(request)
@@ -160,6 +159,10 @@ COOKIE_SECURE = (
     os.getenv("COOKIE_SECURE", "false").lower() == "true"
 )
 
+if os.getenv("APP_ENV", "development").lower() == "production":
+    if not COOKIE_SECURE or len(SESSION_SECRET) < 32:
+        raise RuntimeError("Produccion requiere COOKIE_SECURE=true y SESSION_SECRET de al menos 32 caracteres.")
+
 
 app.add_middleware(
     SessionMiddleware,
@@ -177,7 +180,10 @@ def sesion_operador_valida(request: Request):
         return False
 
     # Debe ser específicamente el operador 400
-    if request.session.get("operador_credencial") != "400":
+    credencial = str(request.session.get("operador_credencial", ""))
+    if not (credencial == "400" or (credencial.isdigit() and 401 <= int(credencial) <= 499)):
+        return False
+    if request.session.get("operador_rol") != "operador_servicios_externos":
         return False
 
     # Obtener fecha y hora de inicio
@@ -188,12 +194,15 @@ def sesion_operador_valida(request: Request):
 
     try:
         inicio = datetime.fromisoformat(inicio)
+        if inicio.tzinfo is None:
+            inicio = inicio.astimezone(timezone.utc)
     except (ValueError, TypeError):
         request.session.clear()
         return False
 
     # Comprobar si ya pasó una hora
-    if datetime.now() - inicio >= timedelta(hours=1):
+    transcurrido = datetime.now(timezone.utc) - inicio
+    if transcurrido < timedelta(0) or transcurrido >= timedelta(hours=1):
         request.session.clear()
         return False
 
@@ -209,29 +218,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+@app.exception_handler(ValueError)
+async def error_validacion(request: Request, error: ValueError):
+    return templates.TemplateResponse(request=request, name="error_validacion.html",
+        context={"error": str(error)}, status_code=400)
+
+
 def admin_autenticado(request: Request):
     return request.session.get("admin_autenticado") is True
-
-
-def enlace_externo_vencido(enlace):
-    """
-    Un enlace externo tiene una vigencia máxima de 24 horas.
-    Devuelve True si ya venció.
-    """
-
-    if enlace.fecha_creacion is None:
-        return True
-
-    fecha_creacion = enlace.fecha_creacion
-
-    # PostgreSQL puede devolver la fecha sin zona horaria.
-    # En ese caso asumimos UTC.
-    if fecha_creacion.tzinfo is None:
-        fecha_creacion = fecha_creacion.replace(tzinfo=timezone.utc)
-
-    ahora = datetime.now(timezone.utc)
-
-    return ahora > fecha_creacion + timedelta(hours=24)
 
 
 # =========================
@@ -321,21 +315,8 @@ def panel_admin(request: Request):
 
 @app.get("/admin/servicios-externos")
 def pagina_servicios_externos(request: Request):
+    return RedirectResponse(url="/admin/tickets", status_code=303)
 
-    enlaces = obtener_enlaces_externos()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_servicios_externos.html",
-        context={
-            "enlaces": enlaces
-        }
-    )
-
-
-# ==========================================================
-# SERVICIOS REGISTRADOS - ADMIN
-# ==========================================================
 
 @app.get("/admin/servicios")
 def pagina_servicios_admin(request: Request):
@@ -543,17 +524,6 @@ def acceso_servicio_externo(
             status_code=403
         )
 
-    # El enlace superó las 24 horas
-    if enlace_externo_vencido(enlace):
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ha vencido. Solicita uno nuevo."
-            },
-            status_code=403
-        )
-
     solicitud = obtener_solicitud_enlace(token)
     if solicitud:
         try:
@@ -603,195 +573,35 @@ def pagina_editar_tienda(
 
 @app.post("/admin/enviar-codigo")
 def enviar_codigo_admin(request: Request):
-
-    global codigo_admin
-
-    ahora = datetime.now(timezone.utc)
-
-    # Evitar que se soliciten códigos demasiado rápido
-    if codigo_admin["ultimo_envio"] is not None:
-
-        tiempo_transcurrido = (
-            ahora - codigo_admin["ultimo_envio"]
-        ).total_seconds()
-
-        if tiempo_transcurrido < 60:
-
-            segundos_restantes = int(
-                60 - tiempo_transcurrido
-            )
-
-            return templates.TemplateResponse(
-                request=request,
-                name="admin/admin_login.html",
-                context={
-                    "error":
-                    f"Espera {segundos_restantes} segundos "
-                    "antes de solicitar otro código."
-                }
-            )
-
-    # Generar código OTP de 6 dígitos
-    codigo = str(
-        secrets.randbelow(900000) + 100000
-    )
-
-    correo_admin = os.getenv("ADMIN_EMAIL")
-
-    if not correo_admin:
-        raise RuntimeError(
-            "Falta configurar ADMIN_EMAIL en el archivo .env"
-        )
-
-    # Enviar código por correo
+    correo = os.getenv("ADMIN_EMAIL")
+    if not correo:
+        return templates.TemplateResponse(request=request, name="admin/admin_login.html",
+            context={"error": "El correo del administrador no esta configurado."}, status_code=503)
     try:
-
-        enviar_codigo(
-            correo_admin,
-            codigo
-        )
-
-        print("Código de administrador enviado correctamente.")
-
-    except Exception as error:
-
-        print(
-            "ERROR AL ENVIAR CÓDIGO ADMIN:",
-            error
-        )
-
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/admin_login.html",
-            context={
-                "error":
-                "No fue posible enviar el código de verificación."
-            }
-        )
-
-    # Guardar información temporal del OTP
-    codigo_admin["codigo"] = codigo
-    codigo_admin["expira"] = ahora + timedelta(minutes=10)
-    codigo_admin["ultimo_envio"] = ahora
-    codigo_admin["intentos"] = 0
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_verificar.html",
-        context={}
-    )
+        codigo = crear_codigo(codigo_administradores, "admin")
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="admin/admin_login.html",
+            context={"error": str(error)}, status_code=429)
+    try:
+        enviar_codigo(correo, codigo)
+    except Exception:
+        invalidar_codigo(codigo_administradores, "admin")
+        return templates.TemplateResponse(request=request, name="admin/admin_login.html",
+            context={"error": "No fue posible enviar el codigo de verificacion."}, status_code=502)
+    return templates.TemplateResponse(request=request, name="admin/admin_verificar.html", context={})
 
 
 @app.post("/admin/verificar-codigo")
-def verificar_codigo_admin(
-    request: Request,
-    codigo: str = Form(...)
-):
+def verificar_codigo_admin(request: Request, codigo: str = Form(...)):
+    try:
+        comprobar_codigo(codigo_administradores, "admin", codigo)
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="admin/admin_verificar.html",
+            context={"error": str(error)}, status_code=400)
+    request.session.clear()
+    request.session["admin_autenticado"] = True
+    return RedirectResponse(url="/admin/panel", status_code=303)
 
-    global codigo_admin
-
-    ahora = datetime.now(timezone.utc)
-
-    # ==========================================
-    # COMPROBAR QUE EXISTA UN CÓDIGO ACTIVO
-    # ==========================================
-
-    if codigo_admin["codigo"] is None:
-
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/admin_login.html",
-            context={
-                "error":
-                "No hay un código activo. Solicita uno nuevo."
-            }
-        )
-
-    # ==========================================
-    # COMPROBAR SI EL CÓDIGO VENCIÓ
-    # ==========================================
-
-    if (
-        codigo_admin["expira"] is None
-        or ahora > codigo_admin["expira"]
-    ):
-
-        codigo_admin["codigo"] = None
-        codigo_admin["expira"] = None
-        codigo_admin["intentos"] = 0
-
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/admin_login.html",
-            context={
-                "error":
-                "El código venció. Solicita uno nuevo."
-            }
-        )
-
-    # ==========================================
-    # COMPROBAR SI EL CÓDIGO ES CORRECTO
-    # ==========================================
-
-    if secrets.compare_digest(
-        codigo.strip(),
-        codigo_admin["codigo"]
-    ):
-
-        # Invalidar OTP después de utilizarlo
-        codigo_admin["codigo"] = None
-        codigo_admin["expira"] = None
-        codigo_admin["intentos"] = 0
-
-        # Crear sesión del administrador
-        request.session["admin_autenticado"] = True
-
-        return RedirectResponse(
-            url="/admin/panel",
-            status_code=303
-        )
-
-    # ==========================================
-    # CÓDIGO INCORRECTO
-    # ==========================================
-
-    codigo_admin["intentos"] += 1
-
-    # Al quinto intento incorrecto,
-    # invalidar completamente el OTP
-    if codigo_admin["intentos"] >= 5:
-
-        codigo_admin["codigo"] = None
-        codigo_admin["expira"] = None
-        codigo_admin["intentos"] = 0
-
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/admin_login.html",
-            context={
-                "error":
-                "Se superó el número máximo de intentos. "
-                "Solicita un nuevo código."
-            }
-        )
-
-    # ==========================================
-    # MOSTRAR INTENTOS RESTANTES
-    # ==========================================
-
-    intentos_restantes = (
-        5 - codigo_admin["intentos"]
-    )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_verificar.html",
-        context={
-            "error":
-            f"Código incorrecto. "
-            f"Te quedan {intentos_restantes} intentos."
-        }
-    )
 
 @app.post("/admin/servicios/{servicio_id}/eliminar")
 def eliminar_servicio_prueba_admin(
@@ -875,54 +685,9 @@ def cerrar_sesion_admin(request: Request):
 # ==========================================================
 
 @app.post("/admin/servicios-externos/generar")
-def generar_enlace_externo(
-    request: Request,
-    tipo_registro: str = Form("REAL")
-):
-    tipo_registro = str(tipo_registro).strip().upper()
+def generar_enlace_externo(request: Request, tipo_registro: str = Form("REAL")):
+    return RedirectResponse(url="/admin/tickets", status_code=303)
 
-    # Seguridad: no confiar en lo que venga del navegador
-    if tipo_registro not in ["REAL", "PRUEBA"]:
-        enlaces = obtener_enlaces_externos()
-
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/admin_servicios_externos.html",
-            context={
-                "enlaces": enlaces,
-                "error": "El tipo de registro seleccionado no es válido."
-            },
-            status_code=400
-        )
-
-    token = secrets.token_urlsafe(32)
-
-    crear_enlace_externo(
-        token,
-        tipo_registro
-    )
-
-    enlace_completo = str(
-        request.url_for(
-            "acceso_servicio_externo",
-            token=token
-        )
-    )
-
-    enlaces = obtener_enlaces_externos()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_servicios_externos.html",
-        context={
-            "enlaces": enlaces,
-            "enlace_generado": enlace_completo
-        }
-    )
-
-# ==========================================================
-# CANCELAR ENLACE EXTERNO
-# ==========================================================
 
 @app.post("/admin/servicios-externos/cancelar/{id_enlace}")
 def cancelar_acceso_externo(id_enlace: int):
@@ -949,75 +714,11 @@ def verificar_tienda_externa(request: Request, token: str, sap: str = Form(...))
 # ==========================================================
 
 @app.post("/operador/servicios-externos/generar")
-def generar_enlace_externo_operador(
-    request: Request,
-    tipo_registro: str = Form("REAL")
-):
-
-    # =====================================================
-    # SEGURIDAD - SOLO OPERADOR 400 AUTENTICADO
-    # =====================================================
-
+def generar_enlace_externo_operador(request: Request, tipo_registro: str = Form("REAL")):
     if not sesion_operador_valida(request):
-        return RedirectResponse(
-            url="/",
-            status_code=303
-        )
-    # =====================================================
-    # VALIDAR TIPO DE REGISTRO
-    # =====================================================
+        return RedirectResponse(url="/tecnico", status_code=303)
+    return RedirectResponse(url="/admin/tickets", status_code=303)
 
-    tipo_registro = str(tipo_registro).strip().upper()
-
-    if tipo_registro not in ["REAL", "PRUEBA"]:
-
-        return templates.TemplateResponse(
-            request=request,
-            name="operador/panel_operador.html",
-            context={
-                "error": "El tipo de registro seleccionado no es válido."
-            },
-            status_code=400
-        )
-
-    # =====================================================
-    # GENERAR TOKEN
-    # =====================================================
-
-    token = secrets.token_urlsafe(32)
-
-    crear_enlace_externo(
-        token,
-        tipo_registro
-    )
-
-    # =====================================================
-    # CREAR URL COMPLETA
-    # =====================================================
-
-    enlace_completo = str(
-        request.url_for(
-            "acceso_servicio_externo",
-            token=token
-        )
-    )
-
-    # =====================================================
-    # MOSTRAR ENLACE GENERADO
-    # =====================================================
-
-    return templates.TemplateResponse(
-        request=request,
-        name="operador/panel_operador.html",
-        context={
-            "enlace_generado": enlace_completo
-        }
-    )
-
-
-# ==========================================================
-# FORMULARIO DE SERVICIO EXTERNO
-# ==========================================================
 
 @app.post("/s/{token}/formulario")
 def formulario_servicio_externo(request: Request, token: str, sap: str = Form(...)):
@@ -1134,240 +835,61 @@ def confirmar_eliminar_tecnico(id_tecnico: int):
 
 
 @app.post("/iniciar-servicio")
-def iniciar_servicio(
-    request: Request,
-    credencial: str = Form(...),
-    fecha: str = Form(...)
-):
-
-    # =====================================================
-    # ACCESO ESPECIAL - OPERADOR DE SERVICIOS
-    # =====================================================
-
-    if credencial == "400":
-
-        correo_operador = os.getenv("OPERADOR_400_EMAIL")
-
-        if not correo_operador:
-            print("ERROR: OPERADOR_400_EMAIL no está configurado.")
-
-            return templates.TemplateResponse(
-                request=request,
-                name="tecnico/tecnico.html",
-                context={
-                    "error": "El correo del operador no está configurado."
-                }
-            )
-
-        # Generar código aleatorio de 6 dígitos
-        codigo = str(secrets.randbelow(900000) + 100000)
-
-        # Guardar temporalmente el código del operador
-        codigo_operadores[credencial] = {
-            "codigo": codigo
-        }
-
-        # Enviar código mediante Resend
-        try:
-            enviar_codigo(
-                correo_operador,
-                codigo
-            )
-
-        except Exception as error:
-            print("ERROR AL ENVIAR CORREO AL OPERADOR:", error)
-
-            return templates.TemplateResponse(
-                request=request,
-                name="tecnico/tecnico.html",
-                context={
-                    "error": "No fue posible enviar el código de verificación."
-                }
-            )
-
-        # Mostrar pantalla para ingresar OTP
-        return templates.TemplateResponse(
-            request=request,
-            name="tecnico/tecnico_verificar.html",
-            context={
-                "credencial": credencial,
-                "correo": correo_operador
-            }
-        )
-
-    # =====================================================
-    # ACCESO NORMAL DE TÉCNICOS
-    # =====================================================
-
-    tecnico = obtener_tecnico_por_credencial(credencial)
-
-    if tecnico is None:
-        return templates.TemplateResponse(
-            request=request,
-            name="tecnico/tecnico.html",
-            context={
-                "error": "La credencial ingresada no está registrada."
-            }
-        )
-
-    if tecnico.activo == 0:
-        return templates.TemplateResponse(
-            request=request,
-            name="tecnico/tecnico.html",
-            context={
-                "error": "Este técnico no se encuentra habilitado."
-            }
-        )
-
-    # Generar código aleatorio de 6 dígitos
-    codigo = str(secrets.randbelow(900000) + 100000)
-
-    # Guardar temporalmente la información
-    codigo_tecnicos[credencial] = {
-        "codigo": codigo,
-        "fecha": fecha
-    }
-
-    # Enviar código al correo del técnico mediante Resend
+def iniciar_servicio(request: Request, credencial: str = Form(...), fecha: str = Form(...)):
+    credencial = credencial.strip()
+    tecnico = None if credencial == "400" else obtener_tecnico_por_credencial(credencial)
+    if credencial != "400" and (tecnico is None or not tecnico.activo):
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
+            context={"error": "La credencial no esta registrada o no esta habilitada."}, status_code=400)
     try:
-        enviar_codigo(
-            tecnico.correo,
-            codigo
-        )
+        datetime.strptime(fecha, "%Y-%m-%d")
+    except ValueError:
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
+            context={"error": "Ingresa una fecha de servicio valida."}, status_code=400)
+    operador = credencial == "400" or tecnico.rol == "operador_servicios_externos"
+    almacen = codigo_operadores if operador else codigo_tecnicos
+    correo = os.getenv("OPERADOR_400_EMAIL") if credencial == "400" else tecnico.correo
+    if not correo:
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
+            context={"error": "El correo no esta configurado."}, status_code=503)
+    try:
+        codigo = crear_codigo(almacen, credencial, fecha)
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
+            context={"error": str(error)}, status_code=429)
+    try:
+        enviar_codigo(correo, codigo)
+    except Exception:
+        invalidar_codigo(almacen, credencial)
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
+            context={"error": "No fue posible enviar el codigo de verificacion."}, status_code=502)
+    return templates.TemplateResponse(request=request, name="tecnico/tecnico_verificar.html",
+        context={"credencial": credencial, "correo": correo})
 
-    except Exception as error:
-        print("ERROR AL ENVIAR CORREO:", error)
-
-        return templates.TemplateResponse(
-            request=request,
-            name="tecnico/tecnico.html",
-            context={
-                "error": "No fue posible enviar el código de verificación."
-            }
-        )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="tecnico/tecnico_verificar.html",
-        context={
-            "credencial": credencial,
-            "correo": tecnico.correo
-        }
-    )
 
 @app.post("/verificar-tecnico")
-def verificar_tecnico(
-    request: Request,
-    credencial: str = Form(...),
-    codigo: str = Form(...)
-):
+def verificar_tecnico(request: Request, credencial: str = Form(...), codigo: str = Form(...)):
+    credencial = credencial.strip()
+    tecnico = None if credencial == "400" else obtener_tecnico_por_credencial(credencial)
+    if credencial != "400" and (tecnico is None or not tecnico.activo):
+        return RedirectResponse(url="/tecnico", status_code=303)
+    operador = credencial == "400" or tecnico.rol == "operador_servicios_externos"
+    almacen = codigo_operadores if operador else codigo_tecnicos
+    try:
+        datos = comprobar_codigo(almacen, credencial, codigo)
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="tecnico/tecnico_verificar.html",
+            context={"credencial": credencial, "error": str(error)}, status_code=400)
+    request.session.clear()
+    if operador:
+        request.session.update({"operador_autenticado": True,
+            "operador_rol": "operador_servicios_externos", "operador_credencial": credencial,
+            "operador_inicio": datetime.now(timezone.utc).isoformat()})
+        return RedirectResponse(url="/panel-operador", status_code=303)
+    request.session.update({"tecnico_id": tecnico.id, "tecnico_fecha": datos["fecha"]})
+    return templates.TemplateResponse(request=request, name="formulario/formulario_servicio.html",
+        context={"tecnico": tecnico, "fecha": datos["fecha"]})
 
-    # =====================================================
-    # VERIFICACIÓN OPERADOR DE SERVICIOS - CÓDIGO 400
-    # =====================================================
-
-    if credencial == "400":
-
-        datos = codigo_operadores.get(credencial)
-
-        if datos is None:
-            return RedirectResponse(
-                url="/",
-                status_code=303
-            )
-
-        # =================================================
-        # CÓDIGO INCORRECTO
-        # =================================================
-
-        if codigo != datos["codigo"]:
-
-            correo_operador = os.getenv("OPERADOR_400_EMAIL")
-
-            return templates.TemplateResponse(
-                request=request,
-                name="tecnico/tecnico_verificar.html",
-                context={
-                    "credencial": credencial,
-                    "correo": correo_operador,
-                    "error": "El código ingresado es incorrecto."
-                }
-            )
-
-        # =================================================
-        # CÓDIGO CORRECTO
-        # =================================================
-
-        # El código solamente puede utilizarse una vez
-        del codigo_operadores[credencial]
-
-        # Crear sesión del operador 400
-        request.session["operador_autenticado"] = True
-        request.session["operador_rol"] = "operador_servicios_externos"
-        request.session["operador_credencial"] = credencial
-
-        # Guardar fecha y hora de inicio de la sesión
-        request.session["operador_inicio"] = datetime.now().isoformat()
-
-        # Enviar al panel exclusivo del operador
-        return RedirectResponse(
-            url="/panel-operador",
-            status_code=303
-        )
-
-    # =====================================================
-    # VERIFICACIÓN NORMAL DE TÉCNICOS
-    # =====================================================
-
-    tecnico = obtener_tecnico_por_credencial(credencial)
-
-    if tecnico is None:
-        return RedirectResponse(
-            url="/",
-            status_code=303
-        )
-
-    datos = codigo_tecnicos.get(credencial)
-
-    if datos is None:
-        return RedirectResponse(
-            url="/",
-            status_code=303
-        )
-
-    # =====================================================
-    # CÓDIGO INCORRECTO
-    # =====================================================
-
-    if codigo != datos["codigo"]:
-
-        return templates.TemplateResponse(
-            request=request,
-            name="tecnico/tecnico_verificar.html",
-            context={
-                "credencial": credencial,
-                "correo": tecnico.correo,
-                "error": "El código ingresado es incorrecto."
-            }
-        )
-
-    # =====================================================
-    # CÓDIGO CORRECTO
-    # =====================================================
-
-    fecha = datos["fecha"]
-
-    # El código solo puede utilizarse una vez
-    del codigo_tecnicos[credencial]
-
-    return templates.TemplateResponse(
-        request=request,
-        name="formulario/formulario_servicio.html",
-        context={
-            "tecnico": tecnico,
-            "fecha": fecha
-        }
-    )
 
 @app.post("/generar-mensaje")
 def generar_mensaje(
@@ -1379,13 +901,20 @@ def generar_mensaje(
     observaciones: str = Form(""),
     recomendaciones: str = Form("")
 ):
+    if request.session.get("tecnico_id") != id_tecnico or request.session.get("tecnico_fecha") != fecha:
+        return RedirectResponse(url="/tecnico", status_code=303)
     tecnico = obtener_tecnico(id_tecnico)
 
-    if tecnico is None:
+    if tecnico is None or not tecnico.activo:
         return RedirectResponse(
             url="/",
             status_code=303
         )
+
+    if not equipo.strip() or len(trabajo_realizado.split()) < 25:
+        return templates.TemplateResponse(request=request, name="formulario/formulario_servicio.html",
+            context={"tecnico": tecnico, "fecha": fecha,
+                     "error": "Completa el equipo y escribe al menos 25 palabras en Trabajo realizado."}, status_code=400)
 
     mensaje = f"""🏢 BS ELECTROMECÁNICA S.A.S.
 📋 INFORME DE SERVICIO
@@ -1472,20 +1001,6 @@ def guardar_servicio_externo(
             name="externo/enlace_invalido.html",
             context={
                 "error": "Este enlace ya no se encuentra disponible."
-            },
-            status_code=403
-        )
-
-    # ==========================================================
-    # 2. VERIFICAR VENCIMIENTO DEL ENLACE
-    # ==========================================================
-
-    if enlace_externo_vencido(enlace):
-        return templates.TemplateResponse(
-            request=request,
-            name="externo/enlace_invalido.html",
-            context={
-                "error": "Este enlace ha vencido. Solicita uno nuevo."
             },
             status_code=403
         )
@@ -1682,9 +1197,22 @@ def cambiar_estado_tienda_admin(
 # Registro de solicitudes de la oficina; protegido por el middleware /admin.
 def pagina_tickets(request, error=None, valores=None, status_code=200, editar_id=None):
     tickets = obtener_tickets()
+    filtros = {
+        "todos": ("Todas las solicitudes", lambda t: True),
+        "pendientes": ("Solicitudes pendientes", lambda t: t["estado"] == "PENDIENTE"),
+        "realizados": ("Servicios realizados", lambda t: t["estado"] == "REALIZADO"),
+        "sin-numero": ("Solicitudes sin número de ticket", lambda t: t["numero"] == "000"),
+        "sin-precio": ("Solicitudes faltantes de precio", lambda t: t["precio"] is None),
+    }
+    filtro = request.query_params.get("filtro", "todos")
+    if filtro not in filtros:
+        filtro = "todos"
+    titulo, coincide = filtros[filtro]
     return templates.TemplateResponse(
         request=request, name="admin/admin_tickets.html",
         context={"tickets": tickets, "error": error, "valores": valores or {}, "editar_id": editar_id,
+                 "tickets_visibles": [t for t in tickets if coincide(t)],
+                 "filtro_activo": filtro, "titulo_listado": titulo,
                  "pendientes": sum(t["estado"] == "PENDIENTE" for t in tickets),
                  "realizados": sum(t["estado"] == "REALIZADO" for t in tickets),
                  "sin_numero": sum(t["numero"] == "000" for t in tickets)},
@@ -1736,7 +1264,7 @@ def completar_numero_ticket(request: Request, solicitud_id: int, numero: str = F
 @app.get("/s/{token}/verificar-ticket")
 def verificar_ticket_externo(token: str, numero: str, sap: str):
     enlace = obtener_enlace_externo(token)
-    if enlace is None or enlace.estado != "PENDIENTE" or enlace_externo_vencido(enlace):
+    if enlace is None or enlace.estado != "PENDIENTE":
         return JSONResponse({"error": "Este enlace ya no está disponible."}, status_code=403)
     try:
         solicitud = obtener_solicitud_enlace(token)
@@ -1784,6 +1312,47 @@ def crear_enlace_solicitud_anterior(request: Request, solicitud_id: int):
     except ValueError as error:
         return pagina_tickets(request, str(error), status_code=400)
     return RedirectResponse("/admin/tickets", status_code=303)
+
+
+def mostrar_edicion_informe(request, solicitud_id, valores, error=None, status_code=200):
+    return templates.TemplateResponse(request=request, name="admin/admin_informe_editar.html",
+        context={"solicitud_id": solicitud_id, "valores": valores, "error": error}, status_code=status_code)
+
+
+@app.get("/admin/tickets/{solicitud_id}/informe/editar")
+def pagina_editar_informe(request: Request, solicitud_id: int):
+    try:
+        valores = obtener_informe_ticket(solicitud_id)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=404)
+    return mostrar_edicion_informe(request, solicitud_id, valores)
+
+
+@app.post("/admin/tickets/{solicitud_id}/informe/editar")
+def guardar_edicion_informe(
+    request: Request, solicitud_id: int, cedula_tecnico: str = Form(...),
+    nombre_tecnico: str = Form(...), telefono_tecnico: str = Form(...),
+    tipo_servicio: str = Form(...), sap_encargado: str = Form(...),
+    nombre_encargado: str = Form(...), descripcion_falla: str = Form(...),
+    trabajo_realizado: str = Form(...), observaciones: str = Form(""),
+    suministro_repuestos: str = Form(...), repuestos_suministrados: str = Form("")
+):
+    valores = {k: v for k, v in locals().items() if k not in ("request", "solicitud_id")}
+    try:
+        editar_informe_ticket(solicitud_id, **valores)
+    except ValueError as error:
+        return mostrar_edicion_informe(request, solicitud_id, valores, str(error), 400)
+    sincronizar_excel_seguro()
+    return RedirectResponse(f"/admin/tickets#solicitud-{solicitud_id}", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/renovar-enlace")
+def reemplazar_enlace_ticket(request: Request, solicitud_id: int):
+    try:
+        renovar_enlace_ticket(solicitud_id)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    return RedirectResponse(f"/admin/tickets#solicitud-{solicitud_id}", status_code=303)
 
 
 @app.post("/admin/tickets/{solicitud_id}/precio")

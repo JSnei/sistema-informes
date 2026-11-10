@@ -108,23 +108,9 @@
                     required
                 >
 
-                    <option
-                        value="locativo"
-                        {% if tecnico["rol"] == "locativo" %}
-                            selected
-                        {% endif %}
-                    >
-                        Locativo
-                    </option>
-
-                    <option
-                        value="electromecanico"
-                        {% if tecnico["rol"] == "electromecanico" %}
-                            selected
-                        {% endif %}
-                    >
-                        Electromecánico
-                    </option>
+                    {% for rol, etiqueta in [('locativo_cedi', 'Locativo CEDI'), ('electromecanico_cedi', 'Electromecánico CEDI'), ('electromecanico_general', 'Electromecánico general'), ('operador_servicios_externos', 'Operador de servicios externos'), ('locativo', 'Locativo'), ('electromecanico', 'Electromecánico')] %}
+                    <option value="{{ rol }}" {% if tecnico.rol == rol %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
 
                 </select>
 

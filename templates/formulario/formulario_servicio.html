@@ -42,7 +42,7 @@ function contarPalabras() {
 
 
 /* Validar desde que carga la página */
-contarPalabras();
+document.addEventListener('DOMContentLoaded', contarPalabras);
 
 </script>
 
@@ -66,6 +66,7 @@ contarPalabras();
 
 
         <form action="/generar-mensaje" method="POST">
+            {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
 
             <!-- DATOS AUTOMÁTICOS -->
 

@@ -1018,6 +1018,7 @@ def crear_servicio_externo(
     ticket_solicitud_id=None,
     telefono_tecnico=""
 ):
+    validar_datos_informe(**locals())
     telefono_tecnico = telefono_tecnico.strip()
     digitos = re.sub(r"[^0-9]", "", telefono_tecnico)
     if (len(telefono_tecnico) > 30 or not 7 <= len(digitos) <= 15
@@ -1652,7 +1653,8 @@ def obtener_tickets():
                 "registrado_por": ticket.registrado_por, "coordinador": ticket.coordinador,
                 "codigo": ticket.codigo, "direccion": tienda.direccion, "ciudad": tienda.ciudad,
                 "descripcion": ticket.descripcion, "sap": tienda.sap,
-                "tienda": tienda.nombre, "fecha_creacion": ticket.fecha_creacion,
+                "tienda": tienda.nombre, "tipo_tienda": tienda.tipo,
+                "fecha_creacion": ticket.fecha_creacion,
                 "estado": "REALIZADO" if servicio else "PENDIENTE",
                 "estado_ticket": "ASIGNADO" if ticket.numero else "FALTANTE POR NÚMERO DE TICKET",
                 "fecha_realizado": servicio.fecha_registro if servicio else None,
@@ -1663,6 +1665,64 @@ def obtener_tickets():
                 "estado_enlace": enlaces[ticket.id].estado if ticket.id in enlaces else None
             })
         return resultado
+
+
+def servicio_del_ticket(db, ticket):
+    if ticket is None:
+        raise ValueError("La solicitud no existe.")
+    servicio = db.get(Servicio, ticket.servicio_id) if ticket.servicio_id else (
+        servicio_real_ticket(db, ticket.numero) if ticket.numero else None
+    )
+    if servicio is None or servicio.estado == "ANULADO":
+        raise ValueError("La solicitud no tiene un informe realizado disponible para editar.")
+    return servicio
+
+
+def obtener_informe_ticket(solicitud_id):
+    with SessionLocal() as db:
+        ticket = db.get(Ticket, solicitud_id)
+        servicio = servicio_del_ticket(db, ticket)
+        campos = ("cedula_tecnico", "nombre_tecnico", "telefono_tecnico", "tipo_servicio",
+                  "sap_encargado", "nombre_encargado", "descripcion_falla",
+                  "trabajo_realizado", "observaciones", "repuestos_suministrados")
+        datos = {campo: getattr(servicio, campo) or "" for campo in campos}
+        datos["suministro_repuestos"] = "SI" if servicio.suministro_repuestos else "NO"
+        return datos
+
+
+def validar_datos_informe(**datos):
+    limites = {"cedula_tecnico": 30, "nombre_tecnico": 150, "telefono_tecnico": 30,
+               "tipo_servicio": 50, "sap_encargado": 50, "nombre_encargado": 150}
+    campos = (*limites, "descripcion_falla", "trabajo_realizado", "observaciones",
+              "suministro_repuestos", "repuestos_suministrados")
+    valores = {campo: str(datos.get(campo, "")).strip() for campo in campos}
+    for campo in (*limites, "descripcion_falla", "trabajo_realizado"):
+        if not valores[campo]:
+            raise ValueError("Completa los datos del técnico, el encargado, el tipo de servicio, la falla y el trabajo realizado.")
+    for campo, limite in limites.items():
+        if len(valores[campo]) > limite:
+            raise ValueError(f"El campo {campo.replace('_', ' ')} admite hasta {limite} caracteres.")
+    telefono = valores["telefono_tecnico"]
+    if not re.fullmatch(r"\+?[0-9 ()-]+", telefono) or not 7 <= len(re.sub(r"[^0-9]", "", telefono)) <= 15:
+        raise ValueError("Ingresa un teléfono válido del técnico, con entre 7 y 15 dígitos.")
+    if valores["suministro_repuestos"] not in ("SI", "NO"):
+        raise ValueError("Indica si se suministraron repuestos.")
+    if valores["suministro_repuestos"] == "SI" and not valores["repuestos_suministrados"]:
+        raise ValueError("Describe los repuestos suministrados.")
+    return valores
+
+
+def editar_informe_ticket(solicitud_id, **datos):
+    valores = validar_datos_informe(**datos)
+    with SessionLocal() as db:
+        ticket = db.query(Ticket).filter_by(id=solicitud_id).with_for_update().first()
+        servicio = servicio_del_ticket(db, ticket)
+        for campo, valor in valores.items():
+            if campo not in ("suministro_repuestos", "repuestos_suministrados"):
+                setattr(servicio, campo, valor or None)
+        servicio.suministro_repuestos = valores["suministro_repuestos"] == "SI"
+        servicio.repuestos_suministrados = valores["repuestos_suministrados"] if servicio.suministro_repuestos else None
+        db.commit()
 
 
 def asignar_numero_ticket(solicitud_id, numero):
@@ -1751,6 +1811,26 @@ def generar_enlace_ticket(solicitud_id):
         db.add(enlace)
         db.flush()
         db.add(TicketEnlace(ticket_id=ticket.id, enlace_id=enlace.id))
+        db.commit()
+
+
+def renovar_enlace_ticket(solicitud_id):
+    """Sustituye el token de una solicitud pendiente en una sola transacción."""
+    with SessionLocal() as db:
+        vinculo = db.query(TicketEnlace).filter_by(ticket_id=solicitud_id).first()
+        if vinculo is None:
+            raise ValueError("Esta solicitud todavía no tiene enlace. Genera su primer enlace.")
+        # Mismo orden de bloqueo que al guardar o editar el servicio.
+        enlace = db.query(EnlaceExterno).filter_by(id=vinculo.enlace_id).with_for_update().first()
+        ticket = db.query(Ticket).filter_by(id=solicitud_id).with_for_update().first()
+        if ticket is None or enlace is None:
+            raise ValueError("La solicitud o su enlace ya no existen.")
+        validar_ticket_servicio(db, ticket, ticket.tienda_id)
+        if enlace.estado == "UTILIZADO":
+            raise ValueError("No se puede reemplazar un enlace que ya fue utilizado.")
+        enlace.token = secrets.token_urlsafe(32)
+        enlace.estado = "PENDIENTE"
+        enlace.fecha_creacion = func.now()
         db.commit()
 
 

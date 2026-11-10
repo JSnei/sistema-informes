@@ -47,7 +47,7 @@
                 <h1>Servicios externos</h1>
 
                 <p>
-                    Genera un acceso temporal para un técnico externo.
+                    Registra el ticket para generar un enlace de un solo uso para el técnico.
                 </p>
 
             </div>
@@ -70,81 +70,8 @@
             <!-- GENERAR ENLACE -->
             <!-- ========================================= -->
 
-            <form
-                action="/operador/servicios-externos/generar"
-                method="post"
-            >
+            <a href="/admin/tickets" class="boton">Registrar ticket y generar enlace</a>
 
-                <div class="grupo">
-
-                    <label for="tipo_registro">
-                        Tipo de registro
-                    </label>
-
-                    <select
-                        id="tipo_registro"
-                        name="tipo_registro"
-                        required
-                    >
-
-                        <option value="REAL" selected>
-                            Servicio real
-                        </option>
-
-                        <option value="PRUEBA">
-                            Servicio de prueba
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <button
-                    type="submit"
-                    class="boton"
-                >
-                    Generar nuevo enlace
-                </button>
-
-            </form>
-
-
-            <!-- ========================================= -->
-            <!-- ENLACE RECIÉN GENERADO -->
-            <!-- ========================================= -->
-
-            {% if enlace_generado %}
-
-                <div class="enlace-generado">
-
-                    <h2>
-                        Enlace generado
-                    </h2>
-
-                    <input
-                        type="text"
-                        id="enlaceGenerado"
-                        value="{{ enlace_generado }}"
-                        readonly
-                    >
-
-                    <button
-                        type="button"
-                        class="boton"
-                        onclick="copiarEnlace()"
-                    >
-                        Copiar enlace
-                    </button>
-
-                    <p id="mensajeCopiado"></p>
-
-                </div>
-
-            {% endif %}
-
-
-            <!-- ========================================= -->
             <!-- SERVICIOS REGISTRADOS -->
             <!-- ========================================= -->
 

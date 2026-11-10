@@ -1,3 +1,52 @@
+function formatearPrecio(valor) {
+    const [entero, decimales] = valor.split(',');
+    const grupos = (entero || '0').replace(/^0+(?=\d)/, '').match(/\d{1,3}(?=(\d{3})*$)/g);
+    const agrupado = grupos.map((grupo, indice) => {
+        if (indice === 0) return grupo;
+        return ((grupos.length - indice) % 2 === 0 ? "'" : '.') + grupo;
+    }).join('');
+    return agrupado + (decimales !== undefined ? ',' + decimales : '');
+}
+
+document.querySelectorAll('.formulario-precio').forEach((formulario) => {
+    const campo = formulario.querySelector('.precio-formateado');
+    const valorGuardado = formulario.querySelector('.precio-valor');
+    function actualizarPrecio(conservarCursor = true) {
+        const posicion = campo.selectionStart ?? campo.value.length;
+        const caracteresAntes = campo.value.slice(0, posicion).replace(/[^0-9,]/g, '').length;
+        const valor = campo.value.replace(/[.'\s]/g, '');
+        campo.setCustomValidity('');
+        valorGuardado.value = '';
+        if (!valor) return;
+        if (!/^\d+(,\d{0,2})?$/.test(valor) || Number(valor.replace(',', '.')) > 9999999999.99) {
+            campo.setCustomValidity('Ingresa un precio entre 0 y 9.999\'999.999,99, con máximo dos decimales separados por coma.');
+            return;
+        }
+        valorGuardado.value = valor.replace(',', '.');
+        campo.value = formatearPrecio(valor);
+        if (conservarCursor) {
+            let cursor = 0;
+            let contados = 0;
+            while (cursor < campo.value.length && contados < caracteresAntes) {
+                if (/[0-9,]/.test(campo.value[cursor])) contados++;
+                cursor++;
+            }
+            campo.setSelectionRange(cursor, cursor);
+        }
+    }
+    campo.value = campo.dataset.valor.replace('.', ',');
+    actualizarPrecio(false);
+    campo.addEventListener('input', () => actualizarPrecio());
+    formulario.addEventListener('submit', (evento) => {
+        actualizarPrecio(false);
+        if (!campo.reportValidity() || !valorGuardado.value) evento.preventDefault();
+    });
+});
+
+document.querySelectorAll('[data-precio-texto]').forEach((texto) => {
+    texto.textContent = formatearPrecio(texto.dataset.precioTexto.replace('.', ','));
+});
+
 const sapTicket = document.getElementById('sap_tienda');
 const datosTienda = document.getElementById('datos-tienda');
 const guardarTicket = document.getElementById('guardar-ticket');
@@ -46,21 +95,16 @@ document.getElementById('registro-ticket').addEventListener('submit', (evento) =
 if (sapTicket.value) buscarTienda();
 
 const buscarTicket = document.getElementById('buscar-ticket');
-const filtroEstado = document.getElementById('filtro-estado');
-const filtroNumero = document.getElementById('filtro-numero');
 function filtrarTickets() {
     let visibles = 0;
     document.querySelectorAll('.solicitud').forEach((solicitud) => {
-        solicitud.hidden = !(solicitud.textContent.toLocaleLowerCase().includes(buscarTicket.value.trim().toLocaleLowerCase()) &&
-            (!filtroEstado.value || solicitud.dataset.estado === filtroEstado.value) &&
-            (!filtroNumero.value || solicitud.dataset.numero === filtroNumero.value));
+        solicitud.hidden = !solicitud.textContent.toLocaleLowerCase().includes(buscarTicket.value.trim().toLocaleLowerCase());
         if (!solicitud.hidden) visibles++;
     });
     document.getElementById('sin-resultados').hidden = visibles > 0;
 }
 buscarTicket.addEventListener('input', filtrarTickets);
-filtroEstado.addEventListener('change', filtrarTickets);
-filtroNumero.addEventListener('change', filtrarTickets);
+filtrarTickets();
 
 document.querySelectorAll('.copiar-enlace-ticket').forEach((boton) => {
     boton.addEventListener('click', async () => {

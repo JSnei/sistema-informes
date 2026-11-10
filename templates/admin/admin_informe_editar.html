@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar informe del técnico</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<main class="contenedor"><div class="tarjeta">
+    <div class="bienvenida"><h1>Editar informe del técnico</h1><p>Solicitud #{{ solicitud_id }}</p></div>
+    {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
+    <form action="/admin/tickets/{{ solicitud_id }}/informe/editar" method="post">
+        {% for campo, etiqueta, limite in [('cedula_tecnico', 'Cédula del técnico', 30), ('nombre_tecnico', 'Nombre del técnico', 150), ('telefono_tecnico', 'Teléfono del técnico', 30), ('tipo_servicio', 'Tipo de servicio', 50), ('sap_encargado', 'SAP del encargado', 50), ('nombre_encargado', 'Nombre del encargado', 150)] %}
+        <div class="grupo">
+            <label for="{{ campo }}">{{ etiqueta }} *</label>
+            <input type="{{ 'tel' if campo == 'telefono_tecnico' else 'text' }}" id="{{ campo }}" name="{{ campo }}"
+                   maxlength="{{ limite }}" value="{{ valores.get(campo, '') }}" required>
+        </div>
+        {% endfor %}
+        {% for campo, etiqueta in [('descripcion_falla', 'Descripción de la falla'), ('trabajo_realizado', 'Trabajo realizado'), ('observaciones', 'Observaciones')] %}
+        <div class="grupo">
+            <label for="{{ campo }}">{{ etiqueta }}{% if campo != 'observaciones' %} *{% endif %}</label>
+            <textarea id="{{ campo }}" name="{{ campo }}" {% if campo != 'observaciones' %}required{% endif %}>{{ valores.get(campo, '') }}</textarea>
+        </div>
+        {% endfor %}
+        <div class="grupo"><label for="suministro_repuestos">¿Se suministraron repuestos? *</label>
+            <select id="suministro_repuestos" name="suministro_repuestos" required>
+                <option value="SI" {% if valores.get('suministro_repuestos') == 'SI' %}selected{% endif %}>Sí</option>
+                <option value="NO" {% if valores.get('suministro_repuestos') == 'NO' %}selected{% endif %}>No</option>
+            </select>
+        </div>
+        <div class="grupo"><label for="repuestos_suministrados">Repuestos suministrados (obligatorio si seleccionas Sí)</label>
+            <textarea id="repuestos_suministrados" name="repuestos_suministrados">{{ valores.get('repuestos_suministrados', '') }}</textarea>
+        </div>
+        <button type="submit" class="boton">Guardar cambios del informe</button>
+        <a class="cancelar" href="/admin/tickets#solicitud-{{ solicitud_id }}">Cancelar y volver</a>
+    </form>
+</div></main>
+</body></html>
