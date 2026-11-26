@@ -14,13 +14,7 @@ from excel_tickets import generar_excel_tickets, NOMBRE_ARCHIVO as NOMBRE_EXCEL_
 from fastapi.responses import StreamingResponse
 from database.database import (
     crear_base_datos,
-    obtener_tecnicos,
-    obtener_tecnico,
-    agregar_tecnico,
-    editar_tecnico,
-    cambiar_estado_tecnico,
-    eliminar_tecnico,
-    obtener_tecnico_por_credencial,
+    obtener_operador_por_credencial,
     obtener_enlace_externo,
     cancelar_enlace_externo,
     obtener_tienda_por_sap,
@@ -52,7 +46,6 @@ from database.database import (
 load_dotenv()
 codigo_administradores = {}
 
-codigo_tecnicos = {}
 
 # OTP temporal para operadores de servicios externos
 codigo_operadores = {}
@@ -113,12 +106,12 @@ async def proteger_rutas_admin(request: Request, call_next):
     if operador_autenticado:
 
         if not sesion_operador_valida(request):
-            return RedirectResponse(url="/tecnico", status_code=303)
+            return RedirectResponse(url="/operador", status_code=303)
 
         if ruta == "/admin/tickets" or ruta.startswith("/admin/tickets/"):
             if sesion_operador_valida(request):
                 return await call_next(request)
-            return RedirectResponse(url="/tecnico", status_code=303)
+            return RedirectResponse(url="/operador", status_code=303)
 
         # El operador únicamente puede entrar a esta sección
         # y a las rutas que cuelgan de ella.
@@ -249,44 +242,15 @@ def inicio(request: Request):
 
 
 # =========================
-# ACCESO TÉCNICOS
+# ACCESO ADMINISTRADOR
 # =========================
 
-@app.get("/tecnico")
-def acceso_tecnico(request: Request):
-
-    return templates.TemplateResponse(
-        request=request,
-        name="tecnico/tecnico.html"
-    )
 
 @app.get("/admin")
 def admin_login(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="admin/admin_login.html"
-    )
-
-
-@app.get("/admin/eliminar/{id_tecnico}")
-def pagina_eliminar_tecnico(
-    request: Request,
-    id_tecnico: int
-):
-    tecnico = obtener_tecnico(id_tecnico)
-
-    if tecnico is None:
-        return RedirectResponse(
-            url="/admin/tecnicos",
-            status_code=303
-        )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_eliminar.html",
-        context={
-            "tecnico": tecnico
-        }
     )
 
 
@@ -300,15 +264,8 @@ def panel_admin(request: Request):
             status_code=303
         )
 
-    tecnicos = obtener_tecnicos()
 
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_panel.html",
-        context={
-            "tecnicos": tecnicos
-        }
-    )
+    return templates.TemplateResponse(request=request, name="admin/admin_panel.html")
 
 
 # ==========================================================
@@ -476,6 +433,59 @@ def pagina_servicios_operador(request: Request):
         }
     )
 
+@app.get("/operador")
+def acceso_operador(request: Request):
+    return templates.TemplateResponse(request=request, name="operador/acceso.html", context={})
+
+
+@app.post("/operador/iniciar")
+def iniciar_operador(request: Request, credencial: str = Form(...)):
+    credencial = credencial.strip()
+    operador = obtener_operador_por_credencial(credencial) if credencial != "400" else None
+    if credencial != "400" and (
+        not credencial.isdigit() or not 401 <= int(credencial) <= 499 or operador is None
+    ):
+        return templates.TemplateResponse(request=request, name="operador/acceso.html",
+            context={"error": "La credencial no corresponde a un operador habilitado."}, status_code=400)
+    correo = os.getenv("OPERADOR_400_EMAIL") if credencial == "400" else operador.correo
+    if not correo:
+        return templates.TemplateResponse(request=request, name="operador/acceso.html",
+            context={"error": "El correo del operador no está configurado."}, status_code=503)
+    try:
+        codigo = crear_codigo(codigo_operadores, credencial)
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="operador/acceso.html",
+            context={"error": str(error)}, status_code=429)
+    try:
+        enviar_codigo(correo, codigo)
+    except Exception:
+        invalidar_codigo(codigo_operadores, credencial)
+        return templates.TemplateResponse(request=request, name="operador/acceso.html",
+            context={"error": "No fue posible enviar el código."}, status_code=502)
+    return templates.TemplateResponse(request=request, name="operador/acceso.html",
+        context={"verificando": True, "credencial": credencial})
+
+
+@app.post("/operador/verificar")
+def verificar_operador(request: Request, credencial: str = Form(...), codigo: str = Form(...)):
+    credencial = credencial.strip()
+    if credencial != "400" and (
+        not credencial.isdigit() or not 401 <= int(credencial) <= 499
+        or obtener_operador_por_credencial(credencial) is None
+    ):
+        return RedirectResponse(url="/operador", status_code=303)
+    try:
+        comprobar_codigo(codigo_operadores, credencial, codigo)
+    except ValueError as error:
+        return templates.TemplateResponse(request=request, name="operador/acceso.html",
+            context={"error": str(error), "verificando": True, "credencial": credencial}, status_code=400)
+    request.session.clear()
+    request.session.update({"operador_autenticado": True,
+        "operador_rol": "operador_servicios_externos", "operador_credencial": credencial,
+        "operador_inicio": datetime.now(timezone.utc).isoformat()})
+    return RedirectResponse(url="/panel-operador", status_code=303)
+
+
 @app.get("/panel-operador")
 def panel_operador(request: Request):
 
@@ -564,8 +574,6 @@ def pagina_editar_tienda(
             "tienda": tienda
         }
     )
-
-
 
 
 # =========================
@@ -666,7 +674,6 @@ def anular_servicio_real_admin(
     )
 
 
-
 # ==========================================================
 # SERVICIOS EXTERNOS
 # ==========================================================
@@ -718,236 +725,13 @@ def verificar_tienda_externa(request: Request, token: str, sap: str = Form(...))
 @app.post("/operador/servicios-externos/generar")
 def generar_enlace_externo_operador(request: Request, tipo_registro: str = Form("REAL")):
     if not sesion_operador_valida(request):
-        return RedirectResponse(url="/tecnico", status_code=303)
+        return RedirectResponse(url="/operador", status_code=303)
     return RedirectResponse(url="/admin/tickets", status_code=303)
 
 
 @app.post("/s/{token}/formulario")
 def formulario_servicio_externo(request: Request, token: str, sap: str = Form(...)):
     return acceso_servicio_externo(request, token)
-
-
-@app.get("/admin/agregar")
-def pagina_agregar_tecnico(request: Request):
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_agregar.html"
-    )
-
-
-@app.get("/admin/tecnicos")
-def pagina_tecnicos(request: Request):
-
-    tecnicos = obtener_tecnicos()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_tecnicos.html",
-        context={
-            "tecnicos": tecnicos
-        }
-    )
-
-
-@app.get("/admin/editar/{id_tecnico}")
-def pagina_editar_tecnico(
-    request: Request,
-    id_tecnico: int
-):
-    tecnico = obtener_tecnico(id_tecnico)
-
-    if tecnico is None:
-        return RedirectResponse(
-            url="/admin/tecnicos",
-            status_code=303
-        )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="admin/admin_editar.html",
-        context={
-            "tecnico": tecnico
-        }
-    )
-
-
-@app.post("/admin/editar/{id_tecnico}")
-def guardar_edicion_tecnico(
-    id_tecnico: int,
-    credencial: str = Form(...),
-    nombre: str = Form(...),
-    correo: str = Form(...),
-    rol: str = Form(...)
-):
-    editar_tecnico(
-        id_tecnico=id_tecnico,
-        credencial=credencial,
-        nombre=nombre,
-        correo=correo,
-        rol=rol
-    )
-
-    return RedirectResponse(
-        url="/admin/tecnicos",
-        status_code=303
-    )
-
-
-@app.post("/admin/estado/{id_tecnico}")
-def estado_tecnico(id_tecnico: int):
-
-    cambiar_estado_tecnico(id_tecnico)
-
-    return RedirectResponse(
-        url="/admin/tecnicos",
-        status_code=303
-    )
-
-
-@app.post("/admin/agregar-tecnico")
-def crear_tecnico(
-    credencial: str = Form(...),
-    nombre: str = Form(...),
-    correo: str = Form(...),
-    rol: str = Form(...)
-):
-    agregar_tecnico(
-        credencial=credencial,
-        nombre=nombre,
-        correo=correo,
-        rol=rol
-    )
-
-    return RedirectResponse(
-        url="/admin/tecnicos",
-        status_code=303
-    )
-
-
-@app.post("/admin/eliminar/{id_tecnico}")
-def confirmar_eliminar_tecnico(id_tecnico: int):
-
-    eliminar_tecnico(id_tecnico)
-
-    return RedirectResponse(
-        url="/admin/tecnicos",
-        status_code=303
-    )
-
-
-@app.post("/iniciar-servicio")
-def iniciar_servicio(request: Request, credencial: str = Form(...), fecha: str = Form(...)):
-    credencial = credencial.strip()
-    tecnico = None if credencial == "400" else obtener_tecnico_por_credencial(credencial)
-    if credencial != "400" and (tecnico is None or not tecnico.activo):
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
-            context={"error": "La credencial no esta registrada o no esta habilitada."}, status_code=400)
-    try:
-        datetime.strptime(fecha, "%Y-%m-%d")
-    except ValueError:
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
-            context={"error": "Ingresa una fecha de servicio valida."}, status_code=400)
-    operador = credencial == "400" or tecnico.rol == "operador_servicios_externos"
-    almacen = codigo_operadores if operador else codigo_tecnicos
-    correo = os.getenv("OPERADOR_400_EMAIL") if credencial == "400" else tecnico.correo
-    if not correo:
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
-            context={"error": "El correo no esta configurado."}, status_code=503)
-    try:
-        codigo = crear_codigo(almacen, credencial, fecha)
-    except ValueError as error:
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
-            context={"error": str(error)}, status_code=429)
-    try:
-        enviar_codigo(correo, codigo)
-    except Exception:
-        invalidar_codigo(almacen, credencial)
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico.html",
-            context={"error": "No fue posible enviar el codigo de verificacion."}, status_code=502)
-    return templates.TemplateResponse(request=request, name="tecnico/tecnico_verificar.html",
-        context={"credencial": credencial, "correo": correo})
-
-
-@app.post("/verificar-tecnico")
-def verificar_tecnico(request: Request, credencial: str = Form(...), codigo: str = Form(...)):
-    credencial = credencial.strip()
-    tecnico = None if credencial == "400" else obtener_tecnico_por_credencial(credencial)
-    if credencial != "400" and (tecnico is None or not tecnico.activo):
-        return RedirectResponse(url="/tecnico", status_code=303)
-    operador = credencial == "400" or tecnico.rol == "operador_servicios_externos"
-    almacen = codigo_operadores if operador else codigo_tecnicos
-    try:
-        datos = comprobar_codigo(almacen, credencial, codigo)
-    except ValueError as error:
-        return templates.TemplateResponse(request=request, name="tecnico/tecnico_verificar.html",
-            context={"credencial": credencial, "error": str(error)}, status_code=400)
-    request.session.clear()
-    if operador:
-        request.session.update({"operador_autenticado": True,
-            "operador_rol": "operador_servicios_externos", "operador_credencial": credencial,
-            "operador_inicio": datetime.now(timezone.utc).isoformat()})
-        return RedirectResponse(url="/panel-operador", status_code=303)
-    request.session.update({"tecnico_id": tecnico.id, "tecnico_fecha": datos["fecha"]})
-    return templates.TemplateResponse(request=request, name="formulario/formulario_servicio.html",
-        context={"tecnico": tecnico, "fecha": datos["fecha"]})
-
-
-@app.post("/generar-mensaje")
-def generar_mensaje(
-    request: Request,
-    id_tecnico: int = Form(...),
-    fecha: str = Form(...),
-    equipo: str = Form(...),
-    trabajo_realizado: str = Form(...),
-    observaciones: str = Form(""),
-    recomendaciones: str = Form("")
-):
-    if request.session.get("tecnico_id") != id_tecnico or request.session.get("tecnico_fecha") != fecha:
-        return RedirectResponse(url="/tecnico", status_code=303)
-    tecnico = obtener_tecnico(id_tecnico)
-
-    if tecnico is None or not tecnico.activo:
-        return RedirectResponse(
-            url="/",
-            status_code=303
-        )
-
-    if not equipo.strip() or len(trabajo_realizado.split()) < 25:
-        return templates.TemplateResponse(request=request, name="formulario/formulario_servicio.html",
-            context={"tecnico": tecnico, "fecha": fecha,
-                     "error": "Completa el equipo y escribe al menos 25 palabras en Trabajo realizado."}, status_code=400)
-
-    mensaje = f"""🏢 BS ELECTROMECÁNICA S.A.S.
-📋 INFORME DE SERVICIO
-
-📅 Fecha: {fecha}
-👷 Técnico: {tecnico.nombre}
-🪪 Credencial: {tecnico.credencial}
-🛠️ Perfil: {tecnico.rol.capitalize()}
-
-⚙️ EQUIPO
-{equipo}
-
-🔧 TRABAJO REALIZADO
-{trabajo_realizado}
-
-🔎 OBSERVACIONES
-{observaciones if observaciones else "Sin observaciones."}
-
-💡 RECOMENDACIONES
-{recomendaciones if recomendaciones else "Sin recomendaciones."}
-
-Muchas gracias por leer.
-"""
-
-    return templates.TemplateResponse(
-        request=request,
-        name="formulario/reporte_generado.html",
-        context={
-            "mensaje": mensaje
-        }
-    )
 
 
 @app.post("/s/{token}/guardar-servicio")
@@ -1107,7 +891,6 @@ def guardar_servicio_externo(
             },
             status_code=400
         )
-
 
 
 # =========================================================

@@ -1,6 +1,7 @@
 import os
 import secrets
 import re
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from sqlalchemy import (
@@ -60,20 +61,15 @@ Base = declarative_base()
 
 
 # ==========================================================
-# MODELO: TÉCNICOS
+# CUENTAS DEL OPERADOR DE OFICINA
 # ==========================================================
 #
-# Credenciales:
-#
-# 101 - 199 = Técnicos CEDI
-# 201 - 299 = Técnicos BS Electromecánica
-#
-# Los técnicos externos NO se registran aquí.
-# Entrarán posteriormente mediante enlaces temporales.
+# Conserva el nombre de tabla existente para mantener las cuentas de operadores.
+# Los registros históricos se preservan para su posterior traslado.
 #
 # ==========================================================
 
-class Tecnico(Base):
+class CuentaOperador(Base):
     __tablename__ = "tecnicos"
 
     id = Column(
@@ -400,307 +396,17 @@ def crear_base_datos():
 
 
 # ==========================================================
-# DETERMINAR TIPO DE TÉCNICO POR CREDENCIAL
+# OBTENER OPERADOR HABILITADO
 # ==========================================================
 
-def obtener_grupo_por_credencial(credencial):
-
-    try:
-        numero = int(credencial)
-    except (ValueError, TypeError):
-        return None
-
-    if 101 <= numero <= 199:
-        return "CEDI"
-
-    if 201 <= numero <= 299:
-        return "EMPRESA"
-
-    if 301 <= numero <= 399:
-        return "RESERVADO"
-
-    if 401 <= numero <= 499:
-        return "SERVICIOS_EXTERNOS"
-
-    return None
-
-
-# ==========================================================
-# OBTENER TODOS LOS TÉCNICOS
-# ==========================================================
-
-def obtener_tecnicos():
-
+def obtener_operador_por_credencial(credencial):
     with SessionLocal() as db:
+        return db.query(CuentaOperador).filter(
+            CuentaOperador.credencial == str(credencial),
+            CuentaOperador.rol == "operador_servicios_externos",
+            CuentaOperador.activo.is_(True)
+        ).first()
 
-        tecnicos = (
-            db.query(Tecnico)
-            .order_by(Tecnico.nombre.asc())
-            .all()
-        )
-
-        return tecnicos
-
-
-# ==========================================================
-# OBTENER TÉCNICO POR ID
-# ==========================================================
-
-def obtener_tecnico(id_tecnico):
-
-    with SessionLocal() as db:
-
-        tecnico = (
-            db.query(Tecnico)
-            .filter(Tecnico.id == id_tecnico)
-            .first()
-        )
-
-        return tecnico
-
-
-# ==========================================================
-# OBTENER TÉCNICO POR CREDENCIAL
-# ==========================================================
-
-def obtener_tecnico_por_credencial(credencial):
-
-    with SessionLocal() as db:
-
-        tecnico = (
-            db.query(Tecnico)
-            .filter(Tecnico.credencial == str(credencial))
-            .first()
-        )
-
-        return tecnico
-
-
-# ==========================================================
-# AGREGAR TÉCNICO
-# ==========================================================
-
-def agregar_tecnico(
-    credencial,
-    nombre,
-    correo,
-    rol
-):
-
-    grupo = obtener_grupo_por_credencial(credencial)
-
-    if grupo is None:
-        raise ValueError(
-            "La credencial debe pertenecer a uno de los rangos permitidos: "
-            "101-199 CEDI, 201-299 BS Electromecánica, "
-            "301-399 reservado o 401-499 Servicios Externos."
-        )
-
-    rol = str(rol).strip()
-
-    # ----------------------------------------------------------
-    # VALIDAR GRUPO 300
-    # ----------------------------------------------------------
-    # Este rango queda reservado para uso futuro.
-    if grupo == "RESERVADO":
-        raise ValueError(
-            "Las credenciales 301-399 están reservadas "
-            "y actualmente no pueden utilizarse."
-        )
-
-    # ----------------------------------------------------------
-    # VALIDAR OPERADORES DE SERVICIOS EXTERNOS
-    # ----------------------------------------------------------
-    # Solo las credenciales 401-499 pueden tener este rol.
-    if rol == "operador_servicios_externos":
-        if grupo != "SERVICIOS_EXTERNOS":
-            raise ValueError(
-                "El perfil Operador de servicios externos "
-                "solo puede utilizar credenciales entre 401 y 499."
-            )
-
-    # Una credencial 401-499 obligatoriamente debe tener
-    # el rol de operador de servicios externos.
-    if grupo == "SERVICIOS_EXTERNOS":
-        if rol != "operador_servicios_externos":
-            raise ValueError(
-                "Las credenciales 401-499 deben utilizar el perfil "
-                "Operador de servicios externos."
-            )
-
-    with SessionLocal() as db:
-
-        existente = (
-            db.query(Tecnico)
-            .filter(
-                Tecnico.credencial == str(credencial)
-            )
-            .first()
-        )
-
-        if existente:
-            raise ValueError(
-                "Ya existe un técnico con esa credencial."
-            )
-
-        tecnico = Tecnico(
-            credencial=str(credencial),
-            nombre=nombre.strip(),
-            correo=correo.strip(),
-            rol=rol,
-            activo=True
-        )
-
-        db.add(tecnico)
-        db.commit()
-        db.refresh(tecnico)
-
-        return tecnico
-
-
-# ==========================================================
-# EDITAR TÉCNICO
-# ==========================================================
-
-def editar_tecnico(
-    id_tecnico,
-    credencial,
-    nombre,
-    correo,
-    rol
-):
-
-    grupo = obtener_grupo_por_credencial(credencial)
-
-    if grupo is None:
-        raise ValueError(
-            "La credencial debe pertenecer a uno de los rangos permitidos: "
-            "101-199 CEDI, 201-299 BS Electromecánica, "
-            "301-399 reservado o 401-499 Servicios Externos."
-        )
-
-    rol = str(rol).strip()
-
-    # ----------------------------------------------------------
-    # VALIDAR GRUPO 300
-    # ----------------------------------------------------------
-    # Este rango queda reservado para uso futuro.
-    if grupo == "RESERVADO":
-        raise ValueError(
-            "Las credenciales 301-399 están reservadas "
-            "y actualmente no pueden utilizarse."
-        )
-
-    # ----------------------------------------------------------
-    # VALIDIDAR OPERADOR DE SERVICIOS EXTERNOS
-    # ----------------------------------------------------------
-    # Solo las credenciales 401-499 pueden tener este rol.
-    if rol == "operador_servicios_externos":
-        if grupo != "SERVICIOS_EXTERNOS":
-            raise ValueError(
-                "El perfil Operador de servicios externos "
-                "solo puede utilizar credenciales entre 401 y 499."
-            )
-
-    # Toda credencial 401-499 debe conservar este rol.
-    if grupo == "SERVICIOS_EXTERNOS":
-        if rol != "operador_servicios_externos":
-            raise ValueError(
-                "Las credenciales 401-499 deben utilizar el perfil "
-                "Operador de servicios externos."
-            )
-
-    with SessionLocal() as db:
-
-        tecnico = (
-            db.query(Tecnico)
-            .filter(
-                Tecnico.id == id_tecnico
-            )
-            .first()
-        )
-
-        if tecnico is None:
-            return None
-
-        credencial_existente = (
-            db.query(Tecnico)
-            .filter(
-                Tecnico.credencial == str(credencial),
-                Tecnico.id != id_tecnico
-            )
-            .first()
-        )
-
-        if credencial_existente:
-            raise ValueError(
-                "Ya existe otro técnico con esa credencial."
-            )
-
-        tecnico.credencial = str(credencial)
-        tecnico.nombre = nombre.strip()
-        tecnico.correo = correo.strip()
-        tecnico.rol = rol
-
-        db.commit()
-
-        return True
-
-
-# ==========================================================
-# ACTIVAR / DESACTIVAR TÉCNICO
-# ==========================================================
-
-def cambiar_estado_tecnico(id_tecnico):
-
-    with SessionLocal() as db:
-
-        tecnico = (
-            db.query(Tecnico)
-            .filter(
-                Tecnico.id == id_tecnico
-            )
-            .first()
-        )
-
-        if tecnico is None:
-            return None
-
-        tecnico.activo = not tecnico.activo
-
-        db.commit()
-
-        return True
-
-
-# ==========================================================
-# ELIMINAR TÉCNICO
-# ==========================================================
-
-def eliminar_tecnico(id_tecnico):
-
-    with SessionLocal() as db:
-
-        tecnico = (
-            db.query(Tecnico)
-            .filter(
-                Tecnico.id == id_tecnico
-            )
-            .first()
-        )
-
-        if tecnico is None:
-            return None
-
-        db.delete(tecnico)
-        db.commit()
-
-        return True
-
-
-# ==========================================================
-# OBTENER TODAS LAS TIENDAS
-# ==========================================================
 
 def obtener_tiendas():
 
@@ -1684,6 +1390,15 @@ def consultar_ticket_servicio(numero, sap_tienda):
                  "fecha_reporte": ticket.fecha_reporte.isoformat()}]
 
 
+def evidencia_del_mes_actual(fecha, ahora=None):
+    zona = timezone(timedelta(hours=-5))
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=timezone.utc)
+    fecha = fecha.astimezone(zona)
+    actual = (ahora or datetime.now(timezone.utc)).astimezone(zona)
+    return (fecha.year, fecha.month) == (actual.year, actual.month)
+
+
 def obtener_tickets():
     with SessionLocal() as db:
         # Una sola consulta de servicios para construir el resumen sin N+1.
@@ -1703,6 +1418,7 @@ def obtener_tickets():
             if servicio and servicio.estado == "ANULADO":
                 servicio = None
             evidencia = evidencias.get(servicio.id) if servicio else None
+            evidencia_historica = bool(evidencia and not evidencia_del_mes_actual(servicio.fecha_registro))
             estado = "PENDIENTE"
             if servicio:
                 estado = "REALIZADO"
@@ -1723,7 +1439,8 @@ def obtener_tickets():
                 "tecnico": servicio.nombre_tecnico if servicio else None,
                 "telefono_tecnico": servicio.telefono_tecnico if servicio else None,
                 "servicio_id": servicio.id if servicio else None,
-                "evidencia_pendiente": bool(evidencia and not evidencia.sincronizada),
+                "evidencia_pendiente": bool(evidencia and not evidencia.sincronizada and not evidencia_historica),
+                "evidencia_historica": evidencia_historica,
                 "carpeta_evidencia": evidencia.carpeta_id if evidencia and evidencia.sincronizada else None,
                 "token": enlaces[ticket.id].token if ticket.id in enlaces else None,
                 "estado_enlace": enlaces[ticket.id].estado if ticket.id in enlaces else None

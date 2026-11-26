@@ -375,38 +375,6 @@ textarea::placeholder {
 
 
 /* ==================================================
-   LISTA DE TÉCNICOS
-   ================================================== */
-
-.tecnico {
-    width: 100%;
-
-    padding: 18px 0;
-
-    border-bottom: 1px solid #e5e5e5;
-}
-
-.tecnico:last-child {
-    border-bottom: none;
-}
-
-.tecnico strong {
-    display: block;
-
-    margin-bottom: 5px;
-
-    font-size: 16px;
-}
-
-.tecnico span {
-    color: #666;
-
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-
-/* ==================================================
    ESTADOS
    ================================================== */
 
@@ -453,39 +421,6 @@ textarea::placeholder {
 }
 
 .advertencia p {
-    color: #666;
-
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-
-/* ==================================================
-   TÉCNICO A ELIMINAR
-   ================================================== */
-
-.tecnico-eliminar {
-    width: 100%;
-
-    background: #f7f7f7;
-
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-
-    padding: 18px;
-
-    margin-bottom: 20px;
-}
-
-.tecnico-eliminar strong {
-    display: block;
-
-    margin-bottom: 8px;
-
-    font-size: 17px;
-}
-
-.tecnico-eliminar span {
     color: #666;
 
     font-size: 14px;
@@ -607,15 +542,8 @@ textarea::placeholder {
 
 
 /* ==================================================
-   ACCIONES DE TÉCNICOS
+   BOTONES DE EDICIÓN Y ELIMINACIÓN
    ================================================== */
-
-.acciones-tecnico {
-    display: flex;
-    align-items: center;
-
-    gap: 8px;
-}
 
 .boton-editar,
 .boton-eliminar {

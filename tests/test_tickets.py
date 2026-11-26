@@ -382,10 +382,16 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertIn("Recibimos 5 evidencias y 1 fotos del ticket firmado", respuesta.text)
         servicio_id = db.obtener_tickets()[0]["servicio_id"]
+        fecha_envio = datetime.now(timezone.utc)
         with self.sessions() as session:
-            session.get(db.Servicio, servicio_id).fecha_registro = datetime(2026, 11, 25, 15, tzinfo=timezone.utc)
+            session.get(db.Servicio, servicio_id).fecha_registro = fecha_envio
             session.commit()
-        guardados = {"mes": {"id": "mes", "name": "NOVIEMBRE", "parents": ["padre"], "mimeType": "application/vnd.google-apps.folder"}}
+        mes_envio = evidencia_drive.MESES[fecha_envio.astimezone(timezone(timedelta(hours=-5))).month - 1]
+        ano_envio = str(fecha_envio.astimezone(timezone(timedelta(hours=-5))).year)
+        guardados = {
+            "ano": {"id": "ano", "name": ano_envio, "parents": ["padre"], "mimeType": "application/vnd.google-apps.folder"},
+            "mes": {"id": "mes", "name": mes_envio, "parents": ["ano"], "mimeType": "application/vnd.google-apps.folder"},
+        }
         fallar = True
         contador = 0
 
@@ -425,18 +431,20 @@ class TicketsTest(unittest.TestCase):
             with self.assertLogs("evidencia_drive", level="ERROR"):
                 self.assertFalse(evidencia_drive.sincronizar_evidencia(servicio_id))
             self.assertTrue(db.obtener_tickets()[0]["evidencia_pendiente"])
-            self.assertEqual(len(guardados), 3)
+            self.assertEqual(len(guardados), 4)
             fallar = False
             self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
-            self.assertEqual(len(guardados), 8)
+            self.assertEqual(len(guardados), 9)
             self.assertEqual(db.obtener_tickets()[0]["carpeta_evidencia"], "drive1")
             self.assertEqual(guardados["drive1"]["name"], f"000 - Solicitud {solicitud}")
             self.assertEqual(guardados["drive1"]["parents"], ["mes"])
+            self.assertEqual(guardados["mes"]["parents"], ["ano"])
+            self.assertEqual(guardados["ano"]["parents"], ["padre"])
             self.assertTrue({"1.png", "2.png", "3.png", "4.png", "5.png", "F1.png"}.issubset({d["name"] for d in guardados.values()}))
             db.asignar_numero_ticket(solicitud, "1294255")
             self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
             self.assertEqual(guardados["drive1"]["name"], "1294255")
-            self.assertEqual(len(guardados), 8)
+            self.assertEqual(len(guardados), 9)
         with self.sessions() as session:
             fotos = session.query(db.FotoEvidencia).filter_by(servicio_id=servicio_id).all()
             self.assertEqual(len(fotos), 6)
@@ -499,6 +507,56 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(obtener_directorio(archivos, 'principal', 'DICIEMBRE'), 'mes-nuevo')
         self.assertEqual(archivos.generateIds.call_count, 1)
         self.assertEqual([c.kwargs['body']['id'] for c in archivos.create.call_args_list], ['mes-nuevo', 'mes-nuevo'])
+
+    def test_evidencias_meses_cerrados_no_recrean_carpetas(self):
+        import evidencia_drive
+        solicitud = self.registrar()
+        servicio_id = self.servicio()
+        with self.sessions() as session:
+            session.get(db.Servicio, servicio_id).fecha_registro = datetime(2026, 10, 15, tzinfo=timezone.utc)
+            session.add(db.CarpetaEvidencia(servicio_id=servicio_id))
+            session.flush()
+            session.add(db.FotoEvidencia(servicio_id=servicio_id, posicion=1, formato='jpg', contenido=b'pendiente'))
+            session.commit()
+        self.autenticar()
+        with patch.object(db, 'datetime') as reloj, patch.object(evidencia_drive, 'obtener_drive') as drive:
+            reloj.now.return_value = datetime(2026, 11, 25, 15, tzinfo=timezone.utc)
+            # Un informe antiguo pendiente no crea ni el mes ni el ticket.
+            self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
+            ticket = db.obtener_tickets()[0]
+            self.assertTrue(ticket['evidencia_historica'])
+            self.assertFalse(ticket['evidencia_pendiente'])
+            with patch.object(self.main, 'sincronizar_evidencia', wraps=evidencia_drive.sincronizar_evidencia):
+                respuesta = self.client.post(f'/admin/tickets/{solicitud}/evidencia', follow_redirects=False)
+                self.assertEqual(respuesta.status_code, 303)
+            # Tampoco intenta renombrar una carpeta antigua tras editar el ticket.
+            with self.sessions() as session:
+                carpeta = session.get(db.CarpetaEvidencia, servicio_id)
+                carpeta.carpeta_id = 'carpeta-eliminada'
+                carpeta.sincronizada = True
+                session.commit()
+            db.editar_ticket(solicitud, **self.datos('CORREGIDO'))
+            self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
+            drive.assert_not_called()
+        with self.sessions() as session:
+            self.assertEqual(session.get(db.FotoEvidencia, (servicio_id, 1)).contenido, b'pendiente')
+
+    def test_cierre_mes_respeta_hora_colombia_y_ano(self):
+        fecha = datetime(2026, 11, 30, 18, tzinfo=timezone.utc)
+        self.assertTrue(db.evidencia_del_mes_actual(fecha, datetime(2026, 12, 1, 4, 59, tzinfo=timezone.utc)))
+        self.assertFalse(db.evidencia_del_mes_actual(fecha, datetime(2026, 12, 1, 5, tzinfo=timezone.utc)))
+        self.assertFalse(db.evidencia_del_mes_actual(datetime(2025, 11, 25, tzinfo=timezone.utc), fecha))
+        self.assertTrue(db.evidencia_del_mes_actual(fecha.replace(tzinfo=None), fecha))
+
+    def test_carpetas_mismo_mes_en_distintos_anos(self):
+        from unittest.mock import MagicMock
+        from evidencia_drive import obtener_directorio
+        archivos = MagicMock()
+        archivos.list.return_value.execute.return_value = {'files': []}
+        archivos.generateIds.return_value.execute.side_effect = [{'ids':['noviembre-2026']}, {'ids':['noviembre-2027']}]
+        self.assertEqual(obtener_directorio(archivos, 'principal', 'NOVIEMBRE', periodo=2026), 'noviembre-2026')
+        self.assertEqual(obtener_directorio(archivos, 'principal', 'NOVIEMBRE', periodo=2027), 'noviembre-2027')
+        self.assertEqual(archivos.generateIds.call_count, 2)
 
     def test_cancelar_ticket_realizado_se_rechaza(self):
         solicitud = self.registrar()

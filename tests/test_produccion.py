@@ -30,7 +30,6 @@ class ProduccionTest(unittest.TestCase):
     def limpiar_codigos(self):
         self.main.codigo_administradores.clear()
         self.main.codigo_operadores.clear()
-        self.main.codigo_tecnicos.clear()
 
     def test_todas_las_rutas_admin_exigen_sesion(self):
         for ruta in self.main.app.routes:
@@ -107,32 +106,42 @@ class ProduccionTest(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as ejecutor:
             self.assertEqual(sum(ejecutor.map(lambda _: verificar(), range(2))), 1)
 
-    def test_acceso_tecnico_y_suplantacion(self):
-        self.limpiar_codigos()
-        tecnico = db.agregar_tecnico("101", "Tecnico prueba", "test@example.invalid", "locativo_cedi")
-        otro = db.agregar_tecnico("102", "Otro tecnico", "otro@example.invalid", "locativo_cedi")
-        datos = {"id_tecnico": tecnico.id, "fecha": "2026-11-10", "equipo": "Bomba",
-                 "trabajo_realizado": " ".join(["Trabajo"] * 25)}
-        self.assertEqual(self.client.post("/generar-mensaje", data=datos, follow_redirects=False).status_code, 303)
-        with patch.object(self.main, "enviar_codigo"):
-            self.assertEqual(self.client.post("/iniciar-servicio", data={"credencial": "101", "fecha": "2026-11-10"}).status_code, 200)
-        codigo = self.main.codigo_tecnicos["101"]["codigo"]
-        self.assertEqual(self.client.post("/verificar-tecnico", data={"credencial": "101", "codigo": codigo}).status_code, 200)
-        self.assertEqual(self.client.post("/generar-mensaje", data=dict(datos, id_tecnico=otro.id), follow_redirects=False).status_code, 303)
-        self.assertEqual(self.client.post("/generar-mensaje", data=dict(datos, trabajo_realizado="breve")).status_code, 400)
-        self.assertEqual(self.client.post("/generar-mensaje", data=datos).status_code, 200)
-        self.assertEqual(self.client.post("/verificar-tecnico", data={"credencial": "101", "codigo": codigo}).status_code, 400)
+    def test_modulo_tecnicos_retirado(self):
+        self.autenticar()
+        rutas = [
+            ("GET", "/tecnico"), ("POST", "/iniciar-servicio"),
+            ("POST", "/verificar-tecnico"), ("POST", "/generar-mensaje"),
+            ("GET", "/admin/agregar"), ("POST", "/admin/agregar-tecnico"),
+            ("GET", "/admin/tecnicos"), ("GET", "/admin/editar/1"),
+            ("POST", "/admin/editar/1"), ("POST", "/admin/estado/1"),
+            ("GET", "/admin/eliminar/1"), ("POST", "/admin/eliminar/1")
+        ]
+        for metodo, ruta in rutas:
+            with self.subTest(metodo=metodo, ruta=ruta):
+                self.assertEqual(self.client.request(metodo, ruta, follow_redirects=False).status_code, 404)
+        with self.sessions() as session:
+            session.add(db.CuentaOperador(credencial="101", nombre="Registro historico",
+                correo="historico@example.invalid", rol="locativo_cedi", activo=True))
+            session.commit()
+        with patch.object(self.main, "enviar_codigo") as enviar:
+            self.assertEqual(self.client.post("/operador/iniciar", data={"credencial":"101"}).status_code, 400)
+            enviar.assert_not_called()
+        self.assertIsNone(db.obtener_operador_por_credencial("101"))
+        self.assertEqual(self.client.get("/admin/panel").status_code, 200)
 
     def test_operador_401_usa_su_panel_y_no_admin(self):
         self.limpiar_codigos()
-        db.agregar_tecnico("401", "Operador prueba", "operador@example.invalid", "operador_servicios_externos")
+        with self.sessions() as session:
+            session.add(db.CuentaOperador(credencial="401", nombre="Operador prueba",
+                correo="operador@example.invalid", rol="operador_servicios_externos", activo=True))
+            session.commit()
         with patch.object(self.main, "enviar_codigo"):
-            self.assertEqual(self.client.post("/iniciar-servicio", data={"credencial": "401", "fecha": "2026-11-10"}).status_code, 200)
+            self.assertEqual(self.client.post("/operador/iniciar", data={"credencial": "401"}).status_code, 200)
         codigo = self.main.codigo_operadores["401"]["codigo"]
-        self.assertEqual(self.client.post("/verificar-tecnico", data={"credencial": "401", "codigo": codigo}, follow_redirects=False).status_code, 303)
+        self.assertEqual(self.client.post("/operador/verificar", data={"credencial": "401", "codigo": codigo}, follow_redirects=False).status_code, 303)
         self.assertEqual(self.client.get("/panel-operador").status_code, 200)
         self.assertEqual(self.client.get("/admin/tickets").status_code, 200)
-        self.assertEqual(self.client.get("/admin/tecnicos", follow_redirects=False).status_code, 303)
+        self.assertEqual(self.client.get("/admin/tiendas", follow_redirects=False).status_code, 303)
 
     def test_formularios_y_campos_externos_se_validan(self):
         self.registrar()
@@ -150,7 +159,6 @@ class ProduccionTest(unittest.TestCase):
         pagina = self.client.get("/admin/tickets").text
         self.assertNotIn('<script>alert("xss")</script>', pagina)
         self.assertIn("&lt;script&gt;", pagina)
-        self.assertEqual(self.client.post("/admin/agregar-tecnico", data={"credencial":"999", "nombre":"Prueba", "correo":"test@example.invalid", "rol":"locativo_cedi"}).status_code, 400)
 
     def test_filtros_precios_y_descarga_excel(self):
         a = self.registrar("100")
@@ -182,7 +190,7 @@ class ProduccionTest(unittest.TestCase):
     def test_plantillas_y_archivos_estaticos(self):
         for nombre in self.main.templates.env.list_templates():
             self.main.templates.env.get_template(nombre)
-        for url in ["/", "/tecnico", "/admin", "/static/css/style.css", "/static/img/logo.png", "/static/js/tickets_oficina.js", "/static/js/ticket_servicio.js"]:
+        for url in ["/", "/operador", "/admin", "/static/css/style.css", "/static/img/logo.png", "/static/js/tickets_oficina.js", "/static/js/ticket_servicio.js"]:
             self.assertEqual(self.client.get(url).status_code, 200, url)
 
     def test_generadores_anteriores_dirigen_al_ticket(self):

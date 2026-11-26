@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso del operador</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<main class="contenedor"><div class="tarjeta">
+    <div class="logo"><img src="/static/img/logo.png" alt="BS Electromecánica"></div>
+    <div class="bienvenida"><h1>Acceso del operador</h1></div>
+    {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
+    {% if verificando %}
+    <p>Ingresa el código enviado a tu correo.</p>
+    <form action="/operador/verificar" method="post">
+        <input type="hidden" name="credencial" value="{{ credencial }}">
+        <div class="grupo"><label for="codigo">Código de verificación</label>
+            <input id="codigo" name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+        </div>
+        <button class="boton" type="submit">Verificar código</button>
+    </form>
+    <a href="/operador" class="cancelar">Solicitar otro código</a>
+    {% else %}
+    <form action="/operador/iniciar" method="post">
+        <div class="grupo"><label for="credencial">Credencial del operador</label>
+            <input id="credencial" name="credencial" inputmode="numeric" required>
+        </div>
+        <button class="boton" type="submit">Enviar código</button>
+    </form>
+    {% endif %}
+    <a href="/" class="cancelar">Volver al inicio</a>
+</div></main>
+</body>
+</html>

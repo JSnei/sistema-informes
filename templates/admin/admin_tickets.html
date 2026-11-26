@@ -110,6 +110,9 @@
             <button class="boton" type="submit">Reintentar sincronización de fotos</button>
         </form>
         {% endif %}
+        {% if ticket.evidencia_historica %}
+        <p>Mes cerrado. Las evidencias ya no se reenvían a Drive.</p>
+        {% endif %}
         {% if ticket.token %}
             {% if ticket.estado_enlace == 'PENDIENTE' and ticket.estado == 'PENDIENTE' %}
             <label for="enlace-{{ ticket.id }}">Enlace del técnico · un solo uso · sin vencimiento</label>

@@ -83,8 +83,11 @@ def listar_archivos(archivos, padre, solo_carpetas=False):
             return resultado
 
 
-def obtener_directorio(archivos, padre, nombre):
-    clave = sha256(f"{padre}/{nombre.casefold()}".encode()).hexdigest()
+def obtener_directorio(archivos, padre, nombre, periodo=None):
+    referencia = f"{padre}/{nombre.casefold()}"
+    if periodo is not None:
+        referencia += f"/{periodo}"
+    clave = sha256(referencia.encode()).hexdigest()
     with db.SessionLocal() as sesion:
         registro = sesion.get(db.DirectorioDrive, clave)
         if registro is None:
@@ -125,8 +128,10 @@ def sincronizar_evidencia(servicio_id):
             carpeta = sesion.query(db.CarpetaEvidencia).filter_by(servicio_id=servicio_id).with_for_update().first()
             if carpeta is None:
                 return True
-            archivos = obtener_drive().files()
             servicio = sesion.get(db.Servicio, servicio_id)
+            if not db.evidencia_del_mes_actual(servicio.fecha_registro):
+                return True
+            archivos = obtener_drive().files()
             nombre = servicio.ticket
             if nombre == "000":
                 solicitud_id = sesion.query(db.Ticket.id).filter_by(servicio_id=servicio_id).scalar()
@@ -140,7 +145,8 @@ def sincronizar_evidencia(servicio_id):
                 if fecha.tzinfo is None:
                     fecha = fecha.replace(tzinfo=timezone.utc)
                 fecha = fecha.astimezone(timezone(timedelta(hours=-5)))
-                carpeta.carpeta_padre_id = obtener_directorio(archivos, padre, MESES[fecha.month - 1])
+                carpeta_anual = obtener_directorio(archivos, padre, str(fecha.year))
+                carpeta.carpeta_padre_id = obtener_directorio(archivos, carpeta_anual, MESES[fecha.month - 1], periodo=fecha.year)
                 carpeta.carpeta_id = obtener_directorio(archivos, carpeta.carpeta_padre_id, nombre)
                 ids = archivos.generateIds(count=len(fotos), space="drive").execute()["ids"]
                 existentes = listar_archivos(archivos, carpeta.carpeta_id)
@@ -161,6 +167,8 @@ def sincronizar_evidencia(servicio_id):
             if carpeta is None:
                 return True
             servicio = sesion.get(db.Servicio, servicio_id)
+            if not db.evidencia_del_mes_actual(servicio.fecha_registro):
+                return True
             nombre = servicio.ticket
             if nombre == "000":
                 solicitud_id = sesion.query(db.Ticket.id).filter_by(servicio_id=servicio_id).scalar()
