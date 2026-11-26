@@ -105,9 +105,9 @@
         {% if ticket.carpeta_evidencia %}
         <a class="boton" href="https://drive.google.com/drive/folders/{{ ticket.carpeta_evidencia }}" target="_blank" rel="noopener">Abrir evidencias en Drive</a>
         {% elif ticket.evidencia_pendiente %}
-        <p>Las fotos están guardadas y pendientes de sincronizar con Drive.</p>
+        <p>Los archivos están guardados y pendientes de sincronizar con Drive.</p>
         <form action="/admin/tickets/{{ ticket.id }}/evidencia" method="post">
-            <button class="boton" type="submit">Reintentar sincronización de fotos</button>
+            <button class="boton" type="submit">Reintentar sincronización de archivos</button>
         </form>
         {% endif %}
         {% if ticket.evidencia_historica %}

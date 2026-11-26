@@ -370,17 +370,20 @@ class TicketsTest(unittest.TestCase):
                      cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
                      sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
                      trabajo_realizado="Reparación", suministro_repuestos="NO")
-        self.assertEqual(self.client.post(ruta, data=datos, files=cuatro_fotos()[:3]).status_code, 400)
-        invalidas = cuatro_fotos()
-        invalidas[-1] = ("fotos", ("falsa.png", b"no es una imagen", "image/png"))
-        self.assertEqual(self.client.post(ruta, data=datos, files=invalidas).status_code, 400)
+        vacio = [("fotos", ("vacio.pdf", b"", "application/pdf"))]
+        self.assertEqual(self.client.post(ruta, data=datos, files=vacio).status_code, 400)
+        with patch('evidencia_drive.MAX_TOTAL', 10):
+            self.assertEqual(self.client.post(ruta, data=datos, files=cuatro_fotos()).status_code, 400)
         self.assertEqual(db.obtener_enlace_externo(token).estado, "PENDIENTE")
         pagina = self.client.get(f"/s/{token}").text
         self.assertEqual(pagina.count('name="fotos"'), 1)
-        self.assertIn('multiple required', pagina)
-        respuesta = self.client.post(ruta, data=datos, files=cuatro_fotos() + cuatro_fotos()[:1])
+        self.assertIn('multiple>', pagina)
+        adjuntos = cuatro_fotos()
+        adjuntos[-1] = ('fotos_ticket', ('firmado.pdf', b'%PDF-1.7\nFirmado', 'application/pdf'))
+        adjuntos.append(('fotos', ('notas.txt', b'Notas del servicio', 'text/plain')))
+        respuesta = self.client.post(ruta, data=datos, files=adjuntos)
         self.assertEqual(respuesta.status_code, 200)
-        self.assertIn("Recibimos 5 evidencias y 1 fotos del ticket firmado", respuesta.text)
+        self.assertIn("Recibimos 5 archivos de evidencia y 1 archivos del ticket firmado", respuesta.text)
         servicio_id = db.obtener_tickets()[0]["servicio_id"]
         fecha_envio = datetime.now(timezone.utc)
         with self.sessions() as session:
@@ -414,6 +417,10 @@ class TicketsTest(unittest.TestCase):
                     raise HttpError(Response({"status": "409"}), b"{}")
                 if body["name"] == "2.png" and fallar:
                     raise OSError("Carga interrumpida")
+                if body['name'] == 'F1.pdf':
+                    self.assertEqual(opciones['media_body'].mimetype(), 'application/pdf')
+                if body['name'] == '5.txt':
+                    self.assertEqual(opciones['media_body'].mimetype(), 'text/plain')
                 guardados[body["id"]] = dict(body)
                 return {"id": body["id"]}
             return SimpleNamespace(execute=ejecutar)
@@ -440,7 +447,7 @@ class TicketsTest(unittest.TestCase):
             self.assertEqual(guardados["drive1"]["parents"], ["mes"])
             self.assertEqual(guardados["mes"]["parents"], ["ano"])
             self.assertEqual(guardados["ano"]["parents"], ["padre"])
-            self.assertTrue({"1.png", "2.png", "3.png", "4.png", "5.png", "F1.png"}.issubset({d["name"] for d in guardados.values()}))
+            self.assertTrue({"1.png", "2.png", "3.png", "4.png", "5.txt", "F1.pdf"}.issubset({d["name"] for d in guardados.values()}))
             db.asignar_numero_ticket(solicitud, "1294255")
             self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
             self.assertEqual(guardados["drive1"]["name"], "1294255")
@@ -478,22 +485,54 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(self.client.post(f"/admin/tickets/{solicitud}/eliminar", follow_redirects=False).status_code, 303)
         self.assertEqual(db.obtener_tickets(), [])
 
-    def test_archivos_video_y_ticket_firmado_obligatorio(self):
+    def test_archivos_video_pdf_y_ticket_opcional(self):
         from io import BytesIO
         from types import SimpleNamespace
         from evidencia_drive import leer_adjuntos
-        def subido(contenido):
-            return SimpleNamespace(file=BytesIO(contenido))
+        def subido(contenido, nombre='archivo'):
+            return SimpleNamespace(file=BytesIO(contenido), filename=nombre)
         png = cuatro_fotos()[0][1][1]
         video = b'\x00\x00\x00\x18ftypisom' + b'\x00' * 24
         evidencias, firmadas = leer_adjuntos(
             [subido(png) for _ in range(3)] + [subido(video)], [subido(png), subido(png)])
         self.assertEqual(evidencias[-1][0], 'mp4')
         self.assertEqual(len(firmadas), 2)
-        with self.assertRaisesRegex(ValueError, 'firmado'):
-            leer_adjuntos([subido(png) for _ in range(4)], [])
-        with self.assertRaisesRegex(ValueError, 'fotografía'):
-            leer_adjuntos([subido(png) for _ in range(4)], [subido(video)])
+        self.assertEqual(leer_adjuntos([], []), ([], []))
+        self.assertEqual(leer_adjuntos([''], ['']), ([], []))
+        evidencias, ticket = leer_adjuntos([subido(b'%PDF-1.7\nDocumento')], [subido(b'contenido', 'hoja.docx')])
+        self.assertEqual(evidencias[0][0], 'pdf')
+        self.assertEqual(ticket[0][0], 'docx')
+        self.assertEqual(leer_adjuntos([subido(png)], [])[1], [])
+
+    def test_envio_sin_archivos_un_adjunto_y_pdf_firmado(self):
+        contenido_pdf = b'%PDF-1.7\nDocumento de prueba'
+        casos = [[], [('fotos', ('evidencia.pdf', contenido_pdf, 'application/pdf'))],
+                 [('fotos_ticket', ('firmado.pdf', contenido_pdf, 'application/pdf'))],
+                 [('fotos', ('notas.txt', b'Notas', 'text/plain'))],
+                 [('fotos', ('', b'', 'application/octet-stream')), ('fotos_ticket', ('', b'', 'application/octet-stream'))]]
+        for indice, adjuntos in enumerate(casos):
+            with self.subTest(adjuntos=indice):
+                numero = str(9000 + indice)
+                solicitud = self.registrar(numero)
+                token = db.obtener_tickets()[0]['token']
+                datos = dict(sap_tienda='1230', ticket=numero, tipo_servicio='CORRECTIVO',
+                    cedula_tecnico='123', nombre_tecnico='Técnico', telefono_tecnico='3112104557',
+                    sap_encargado='456', nombre_encargado='Encargado', descripcion_falla='Falla',
+                    trabajo_realizado='Reparación', suministro_repuestos='NO')
+                respuesta = self.client.post(f'/s/{token}/guardar-servicio', data=datos, files=adjuntos)
+                self.assertEqual(respuesta.status_code, 200)
+                ticket = next(t for t in db.obtener_tickets() if t['id'] == solicitud)
+                self.assertEqual(ticket['estado'], 'REALIZADO')
+                with self.sessions() as sesion:
+                    archivos = sesion.query(db.FotoEvidencia).filter_by(servicio_id=ticket['servicio_id']).all()
+                    if indice in (0, 4):
+                        self.assertEqual(archivos, [])
+                    else:
+                        self.assertEqual(len(archivos), 1)
+                        if indice == 2:
+                            self.assertEqual(archivos[0].tipo, 'FIRMADO')
+                            self.assertEqual(archivos[0].formato, 'pdf')
+                            self.assertIn('1 archivos del ticket firmado', respuesta.text)
 
     def test_directorio_mensual_reintenta_mismo_id(self):
         from unittest.mock import MagicMock

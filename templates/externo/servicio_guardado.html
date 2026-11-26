@@ -99,8 +99,8 @@
         </div>
 
 
-        {% if fotos_recibidas %}
-        <p role="status">Recibimos {{ fotos_recibidas }} evidencias y {{ firmadas_recibidas }} fotos del ticket firmado. El sistema las sincronizará con Google Drive.</p>
+        {% if fotos_recibidas or firmadas_recibidas %}
+        <p role="status">Recibimos {{ fotos_recibidas }} archivos de evidencia y {{ firmadas_recibidas }} archivos del ticket firmado. El sistema los sincronizará con Google Drive.</p>
         {% endif %}
         <div class="footer">
             BS Electromecánica S.A.S.

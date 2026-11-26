@@ -581,21 +581,21 @@
                 <section class="seccion-formulario">
                     <h2>Evidencias del servicio</h2>
                     <div class="campo zona-archivos" data-entrada="fotos-evidencia">
-                        <label for="fotos-evidencia">Seleccionar fotos o videos *</label>
+                        <label for="fotos-evidencia">Seleccionar archivos (opcional)</label>
                         <p>Arrastra y suelta los archivos aquí o selecciónalos.</p>
-                        <p id="ayuda-fotos">Mínimo cuatro evidencias. Fotos JPG, PNG o WebP de hasta 10 MB; videos MP4, MOV o WebM de hasta 50 MB.</p>
+                        <p id="ayuda-fotos">Puedes adjuntar fotos, videos, PDF y otros documentos. Máximo 10 MB por archivo y 50 MB por video.</p>
                         <input id="fotos-evidencia" name="fotos" type="file"
-                               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" aria-describedby="ayuda-fotos estado-fotos" multiple required>
+                               aria-describedby="ayuda-fotos estado-fotos" multiple>
                         <p id="estado-fotos" role="status" aria-live="polite"></p>
                         <ul class="lista-adjuntos" hidden></ul>
                     </div>
                     <h2>Ticket firmado</h2>
                     <div class="campo zona-archivos" data-entrada="fotos-ticket">
-                        <label for="fotos-ticket">Seleccionar fotos del ticket firmado *</label>
-                        <p>Arrastra y suelta las fotos aquí o selecciónalas.</p>
-                        <p id="ayuda-ticket">Adjunta una o varias fotografías legibles del ticket firmado. Máximo 10 MB por foto.</p>
-                        <input id="fotos-ticket" name="fotos_ticket" type="file" accept="image/jpeg,image/png,image/webp"
-                               aria-describedby="ayuda-ticket estado-ticket" multiple required>
+                        <label for="fotos-ticket">Seleccionar archivos del ticket firmado (opcional)</label>
+                        <p>Arrastra y suelta los archivos aquí o selecciónalos.</p>
+                        <p id="ayuda-ticket">Puedes adjuntar el ticket firmado como PDF, imagen u otro archivo. Máximo 10 MB por archivo y 50 MB por video.</p>
+                        <input id="fotos-ticket" name="fotos_ticket" type="file"
+                               aria-describedby="ayuda-ticket estado-ticket" multiple>
                         <p id="estado-ticket" role="status" aria-live="polite"></p>
                         <ul class="lista-adjuntos" hidden></ul>
                     </div>
@@ -622,7 +622,7 @@
 
 
     <script id="valores-servicio" type="application/json">{{ valores | default({}) | tojson }}</script>
-    <script src="/static/js/ticket_servicio.js?v=quitar-archivos"></script>
+    <script src="/static/js/ticket_servicio.js?v=adjuntos-opcionales"></script>
 
     <!-- =============================== -->
     <!-- JAVASCRIPT -->

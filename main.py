@@ -762,8 +762,8 @@ def guardar_servicio_externo(
     suministro_repuestos: str = Form(...),
     repuestos_suministrados: str = Form(""),
     ticket_solicitud_id: int | None = Form(None),
-    fotos: list[UploadFile] = File(default=[]),
-    fotos_ticket: list[UploadFile] = File(default=[])
+    fotos: list[UploadFile | str] = File(default=[]),
+    fotos_ticket: list[UploadFile | str] = File(default=[])
 ):
 
     valores = {k: v for k, v in locals().items() if k not in ("request", "token", "tareas", "fotos", "fotos_ticket")}
@@ -872,8 +872,8 @@ def guardar_servicio_externo(
             context={
                 "servicio_id": servicio_id,
                 "enlace_id": enlace.id,
-                "fotos_recibidas": len(fotos),
-                "firmadas_recibidas": len(fotos_ticket)
+                "fotos_recibidas": len(evidencias),
+                "firmadas_recibidas": len(firmadas)
             }
         )
 
@@ -1191,7 +1191,7 @@ def reenviar_evidencia(request: Request, solicitud_id: int):
     if not ticket or not ticket["servicio_id"]:
         return pagina_tickets(request, "La solicitud no tiene un servicio disponible.", status_code=404)
     if not sincronizar_evidencia(ticket["servicio_id"]):
-        return pagina_tickets(request, "Drive no recibió las fotos. Se conservan guardadas para otro intento.", status_code=502)
+        return pagina_tickets(request, "Drive no recibió los archivos. Se conservan guardados para otro intento.", status_code=502)
     return RedirectResponse(f"/admin/tickets#solicitud-{solicitud_id}", status_code=303)
 
 

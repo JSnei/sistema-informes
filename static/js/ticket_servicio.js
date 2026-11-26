@@ -13,16 +13,13 @@ const fotosEvidencia = document.getElementById('fotos-evidencia');
 const estadoFotos = document.getElementById('estado-fotos');
 fotosEvidencia.addEventListener('change', () => {
     const cantidad = fotosEvidencia.files.length;
-    const faltantes = 4 - cantidad;
-    const mensaje = cantidad > 0 && faltantes > 0 ? `Selecciona ${faltantes} ${faltantes === 1 ? 'archivo más' : 'archivos más'}.` : '';
-    fotosEvidencia.setCustomValidity(mensaje);
-    estadoFotos.textContent = cantidad ? `${cantidad} ${cantidad === 1 ? 'archivo seleccionado' : 'archivos seleccionados'}. ${mensaje}` : '';
+    estadoFotos.textContent = cantidad ? `${cantidad} ${cantidad === 1 ? 'archivo seleccionado' : 'archivos seleccionados'}.` : '';
 });
 
 const fotosTicket = document.getElementById('fotos-ticket');
 fotosTicket.addEventListener('change', () => {
     const cantidad = fotosTicket.files.length;
-    document.getElementById('estado-ticket').textContent = cantidad ? `${cantidad} ${cantidad === 1 ? 'foto seleccionada' : 'fotos seleccionadas'}.` : '';
+    document.getElementById('estado-ticket').textContent = cantidad ? `${cantidad} ${cantidad === 1 ? 'archivo seleccionado' : 'archivos seleccionados'}.` : '';
 });
 
 document.querySelectorAll('.zona-archivos').forEach((zona) => {

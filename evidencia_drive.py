@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os
 import re
 from datetime import timedelta, timezone
@@ -12,26 +13,32 @@ from sqlalchemy.exc import IntegrityError
 from database import database as db
 from excel_drive import GOOGLE_DRIVE_FOLDER_ID, obtener_drive
 
-MAX_FOTO = 10 * 1024 * 1024
+MAX_ARCHIVO = 10 * 1024 * 1024
 MAX_VIDEO = 50 * 1024 * 1024
 MAX_TOTAL = 100 * 1024 * 1024
 FORMATOS = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp",
-            "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm"}
+            "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm", "pdf": "application/pdf"}
 MESES = ("ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO",
          "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE")
 logger = logging.getLogger(__name__)
 
 
-def leer_fotos(archivos, firmado=False):
-    minimo = 1 if firmado else 4
-    if len(archivos) < minimo:
-        raise ValueError("Adjunta al menos una foto del ticket firmado." if firmado else "Adjunta al menos cuatro fotos o videos de evidencia.")
+def leer_archivos(archivos):
     if len(archivos) > 999:
-        raise ValueError("El envío admite hasta 999 fotos de evidencia.")
+        raise ValueError("El envío admite hasta 999 archivos.")
     fotos = []
     total = 0
     for archivo in archivos:
+        # Un control de archivos sin selección puede llegar como un campo vacío.
+        if isinstance(archivo, str):
+            if not archivo:
+                continue
+            raise ValueError("Adjunta un archivo válido.")
         contenido = archivo.file.read(MAX_VIDEO + 1)
+        if not contenido:
+            if not archivo.filename:
+                continue
+            raise ValueError("Uno de los archivos seleccionados está vacío.")
         total += len(contenido)
         if total > MAX_TOTAL:
             raise ValueError("Los archivos juntos deben pesar como máximo 100 MB.")
@@ -41,18 +48,20 @@ def leer_fotos(archivos, firmado=False):
             formato = "png"
         elif contenido.startswith(b"RIFF") and contenido[8:12] == b"WEBP":
             formato = "webp"
+        elif contenido.startswith(b"%PDF-"):
+            formato = "pdf"
         elif (len(contenido) >= 12 and contenido[4:8] == b"ftyp" and
               contenido[8:12] in (b"qt  ", b"isom", b"iso2", b"mp41", b"mp42", b"avc1", b"M4V ", b"MSNV", b"dash")):
             formato = "mov" if contenido[8:12] == b"qt  " else "mp4"
         elif contenido.startswith(b"\x1a\x45\xdf\xa3") and b"webm" in contenido[:4096]:
             formato = "webm"
         else:
-            raise ValueError("Usa imágenes JPG, PNG o WebP, o videos MP4, MOV o WebM.")
-        video = formato in ("mp4", "mov", "webm")
-        if firmado and video:
-            raise ValueError("El ticket firmado debe adjuntarse como fotografía.")
-        if len(contenido) > (MAX_VIDEO if video else MAX_FOTO):
-            raise ValueError("Máximo 10 MB por foto y 50 MB por video.")
+            extension = os.path.splitext(getattr(archivo, "filename", "") or "")[1].lstrip('.').lower()
+            formato = extension if re.fullmatch(r"[a-z0-9]{1,10}", extension) else "bin"
+        tipo_mime = FORMATOS.get(formato) or mimetypes.guess_type(f"archivo.{formato}")[0] or ""
+        video = tipo_mime.startswith("video/")
+        if len(contenido) > (MAX_VIDEO if video else MAX_ARCHIVO):
+            raise ValueError("Máximo 10 MB por archivo y 50 MB por video.")
         fotos.append((formato, contenido))
     return fotos
 
@@ -60,8 +69,8 @@ def leer_fotos(archivos, firmado=False):
 def leer_adjuntos(evidencias, firmadas):
     if len(evidencias) + len(firmadas) > 999:
         raise ValueError("El envío admite hasta 999 archivos en total.")
-    fotos = leer_fotos(evidencias)
-    ticket = leer_fotos(firmadas, firmado=True)
+    fotos = leer_archivos(evidencias)
+    ticket = leer_archivos(firmadas)
     if sum(len(contenido) for _, contenido in fotos + ticket) > MAX_TOTAL:
         raise ValueError("Los archivos juntos deben pesar como máximo 100 MB.")
     return fotos, ticket
@@ -122,7 +131,7 @@ def crear_en_drive(archivos, datos, media=None):
 
 
 def sincronizar_evidencia(servicio_id):
-    """Conserva las fotos pendientes hasta confirmar su carga en Drive."""
+    """Conserva los adjuntos pendientes hasta confirmar su carga en Drive."""
     try:
         with db.SessionLocal() as sesion:
             carpeta = sesion.query(db.CarpetaEvidencia).filter_by(servicio_id=servicio_id).with_for_update().first()
@@ -183,7 +192,8 @@ def sincronizar_evidencia(servicio_id):
             archivos.update(fileId=carpeta.carpeta_id, body={"name": nombre}, supportsAllDrives=True).execute()
             fotos = sesion.query(db.FotoEvidencia).filter_by(servicio_id=servicio_id).order_by(db.FotoEvidencia.posicion).all()
             for foto in fotos:
-                media = MediaIoBaseUpload(BytesIO(foto.contenido), mimetype=FORMATOS[foto.formato])
+                tipo_mime = FORMATOS.get(foto.formato) or mimetypes.guess_type(f"archivo.{foto.formato}")[0] or "application/octet-stream"
+                media = MediaIoBaseUpload(BytesIO(foto.contenido), mimetype=tipo_mime)
                 crear_en_drive(archivos, {"id": foto.archivo_id, "name": foto.nombre_drive or f"Evidencia {foto.posicion}.{foto.formato}",
                                           "parents": [carpeta.carpeta_id]}, media)
                 foto.contenido = None
