@@ -16,6 +16,12 @@ from sqlalchemy import inspect, text
 from database import database as db
 
 
+def cuatro_fotos():
+    contenido = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=")
+    evidencias = [("fotos", (f"foto-{i}.png", contenido, "image/png")) for i in range(4)]
+    return evidencias + [("fotos_ticket", ("firmado.png", contenido, "image/png"))]
+
+
 class TicketsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -30,6 +36,8 @@ class TicketsTest(unittest.TestCase):
         self.db_patch.start()
         self.drive_patch = patch.object(self.main, "sincronizar_excel_seguro", return_value=True)
         self.drive_patch.start()
+        self.evidencia_patch = patch.object(self.main, "sincronizar_evidencia", return_value=True)
+        self.evidencia_patch.start()
         with self.sessions() as session:
             session.add_all([
                 db.Tienda(sap="1230", nombre="NEIVA GUADUALES", direccion="Calle 19 No 41A - 26", ciudad="Neiva"),
@@ -43,6 +51,7 @@ class TicketsTest(unittest.TestCase):
         self.client.close()
         self.db_patch.stop()
         self.drive_patch.stop()
+        self.evidencia_patch.stop()
         self.engine.dispose()
 
     def autenticar(self, operador=False):
@@ -100,12 +109,12 @@ class TicketsTest(unittest.TestCase):
             cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
             sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
             trabajo_realizado="Reparación", suministro_repuestos="NO")
-        self.assertEqual(self.client.post(f"/s/{anterior}/guardar-servicio", data=datos).status_code, 404)
-        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos).status_code, 200)
+        self.assertEqual(self.client.post(f"/s/{anterior}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 404)
+        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 200)
         self.assertEqual(self.client.post(ruta).status_code, 400)
         self.assertEqual(db.obtener_tickets()[0]["token"], nuevo)
         self.assertEqual(self.client.get(f"/s/{nuevo}").status_code, 403)
-        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos).status_code, 403)
+        self.assertEqual(self.client.post(f"/s/{nuevo}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 403)
 
     def test_renovar_enlace_cancelado(self):
         solicitud = self.registrar()
@@ -195,11 +204,11 @@ class TicketsTest(unittest.TestCase):
         datos = dict(sap_tienda="1230", ticket="000", tipo_servicio="CORRECTIVO", cedula_tecnico="123",
                      nombre_tecnico="Técnico", telefono_tecnico="3112104557", sap_encargado="456", nombre_encargado="Encargado",
                      descripcion_falla="Falla", trabajo_realizado="Reparación", suministro_repuestos="NO")
-        respuesta = self.client.post("/s/guardar/guardar-servicio", data=datos)
+        respuesta = self.client.post("/s/guardar/guardar-servicio", data=datos, files=cuatro_fotos())
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("Selecciona la solicitud", respuesta.text)
         datos["ticket_solicitud_id"] = solicitud
-        self.assertEqual(self.client.post("/s/guardar/guardar-servicio", data=datos).status_code, 200)
+        self.assertEqual(self.client.post("/s/guardar/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 200)
         self.assertEqual(db.obtener_tickets()[0]["estado"], "REALIZADO")
 
     def test_enlace_automatico_vinculado_y_un_solo_uso(self):
@@ -227,8 +236,8 @@ class TicketsTest(unittest.TestCase):
             tipo_servicio="CORRECTIVO", cedula_tecnico="1", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
             sap_encargado="1", nombre_encargado="Encargado", descripcion_falla="Falla",
             trabajo_realizado="Trabajo", suministro_repuestos="NO")
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos_servicio).status_code, 200)
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos_servicio).status_code, 403)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos_servicio, files=cuatro_fotos()).status_code, 200)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos_servicio, files=cuatro_fotos()).status_code, 403)
         self.assertEqual(self.client.get(f"/s/{token}").status_code, 403)
         self.assertEqual(self.client.get(f"/s/{token}/verificar-ticket?numero=000&sap=1230").status_code, 403)
         # Un enlace antiguo cancelado tampoco se vuelve válido.
@@ -291,15 +300,15 @@ class TicketsTest(unittest.TestCase):
             cedula_tecnico="123", nombre_tecnico="Técnico", sap_encargado="456",
             nombre_encargado="Encargado", descripcion_falla="Falla",
             trabajo_realizado="Reparación", suministro_repuestos="NO")
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 422)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 422)
         datos["telefono_tecnico"] = "abc"
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 400)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 400)
         datos["telefono_tecnico"] = "+57 311 2104557"
         datos["ticket"] = "OTRO"
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 400)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 400)
         datos["ticket"] = "1294255"
         # No se necesita enviar el identificador de la solicitud: lo determina el enlace.
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 200)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 200)
         self.assertEqual(db.obtener_servicios()[0]["telefono_tecnico"], "+57 311 2104557")
         self.assertEqual(db.obtener_servicios_para_excel()[0]["telefono_tecnico"], "+57 311 2104557")
 
@@ -310,7 +319,7 @@ class TicketsTest(unittest.TestCase):
             cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
             sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
             trabajo_realizado="Reparación", suministro_repuestos="NO")
-        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos).status_code, 200)
+        self.assertEqual(self.client.post(f"/s/{token}/guardar-servicio", data=datos, files=cuatro_fotos()).status_code, 200)
         ruta = f"/admin/tickets/{solicitud}/informe/editar"
         original = db.obtener_informe_ticket(solicitud)
         self.assertEqual(self.client.get(ruta, follow_redirects=False).status_code, 303)
@@ -347,6 +356,156 @@ class TicketsTest(unittest.TestCase):
         self.assertEqual(self.client.get(ruta).status_code, 200)
         db.anular_servicio_real(servicio_id)
         self.assertEqual(self.client.get(ruta).status_code, 404)
+
+    def test_evidencia_obligatoria_reintento_y_edicion(self):
+        from types import SimpleNamespace
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        import evidencia_drive
+
+        solicitud = self.registrar("000")
+        token = db.obtener_tickets()[0]["token"]
+        ruta = f"/s/{token}/guardar-servicio"
+        datos = dict(sap_tienda="1230", ticket="000", tipo_servicio="CORRECTIVO",
+                     cedula_tecnico="123", nombre_tecnico="Técnico", telefono_tecnico="3112104557",
+                     sap_encargado="456", nombre_encargado="Encargado", descripcion_falla="Falla",
+                     trabajo_realizado="Reparación", suministro_repuestos="NO")
+        self.assertEqual(self.client.post(ruta, data=datos, files=cuatro_fotos()[:3]).status_code, 400)
+        invalidas = cuatro_fotos()
+        invalidas[-1] = ("fotos", ("falsa.png", b"no es una imagen", "image/png"))
+        self.assertEqual(self.client.post(ruta, data=datos, files=invalidas).status_code, 400)
+        self.assertEqual(db.obtener_enlace_externo(token).estado, "PENDIENTE")
+        pagina = self.client.get(f"/s/{token}").text
+        self.assertEqual(pagina.count('name="fotos"'), 1)
+        self.assertIn('multiple required', pagina)
+        respuesta = self.client.post(ruta, data=datos, files=cuatro_fotos() + cuatro_fotos()[:1])
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn("Recibimos 5 evidencias y 1 fotos del ticket firmado", respuesta.text)
+        servicio_id = db.obtener_tickets()[0]["servicio_id"]
+        with self.sessions() as session:
+            session.get(db.Servicio, servicio_id).fecha_registro = datetime(2026, 11, 25, 15, tzinfo=timezone.utc)
+            session.commit()
+        guardados = {"mes": {"id": "mes", "name": "NOVIEMBRE", "parents": ["padre"], "mimeType": "application/vnd.google-apps.folder"}}
+        fallar = True
+        contador = 0
+
+        def generar_ids(count, **opciones):
+            nonlocal contador
+            ids = [f"drive{i}" for i in range(contador + 1, contador + count + 1)]
+            contador += count
+            return SimpleNamespace(execute=lambda: {"ids": ids})
+
+        def listar(q, **opciones):
+            padre = q.split("'")[1]
+            encontrados = [dict(d, id=id) for id, d in guardados.items() if padre in d.get("parents", [])]
+            if "mimeType=" in q:
+                encontrados = [d for d in encontrados if d.get("mimeType") == "application/vnd.google-apps.folder"]
+            return SimpleNamespace(execute=lambda: {"files": encontrados})
+
+        def crear(body, **opciones):
+            def ejecutar():
+                if body["id"] in guardados:
+                    raise HttpError(Response({"status": "409"}), b"{}")
+                if body["name"] == "2.png" and fallar:
+                    raise OSError("Carga interrumpida")
+                guardados[body["id"]] = dict(body)
+                return {"id": body["id"]}
+            return SimpleNamespace(execute=ejecutar)
+
+        archivos = SimpleNamespace(
+            generateIds=generar_ids,
+            list=listar,
+            create=crear,
+            get=lambda fileId, **kw: SimpleNamespace(execute=lambda: guardados[fileId]),
+            update=lambda fileId, body, **kw: SimpleNamespace(execute=lambda: guardados[fileId].update(body)),
+        )
+        with patch.object(evidencia_drive, "obtener_drive", return_value=SimpleNamespace(files=lambda: archivos)), \
+             patch.object(evidencia_drive, "GOOGLE_DRIVE_FOLDER_ID", "padre"), \
+             patch.dict("os.environ", {"GOOGLE_DRIVE_EVIDENCE_FOLDER_ID": "padre"}):
+            with self.assertLogs("evidencia_drive", level="ERROR"):
+                self.assertFalse(evidencia_drive.sincronizar_evidencia(servicio_id))
+            self.assertTrue(db.obtener_tickets()[0]["evidencia_pendiente"])
+            self.assertEqual(len(guardados), 3)
+            fallar = False
+            self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
+            self.assertEqual(len(guardados), 8)
+            self.assertEqual(db.obtener_tickets()[0]["carpeta_evidencia"], "drive1")
+            self.assertEqual(guardados["drive1"]["name"], f"000 - Solicitud {solicitud}")
+            self.assertEqual(guardados["drive1"]["parents"], ["mes"])
+            self.assertTrue({"1.png", "2.png", "3.png", "4.png", "5.png", "F1.png"}.issubset({d["name"] for d in guardados.values()}))
+            db.asignar_numero_ticket(solicitud, "1294255")
+            self.assertTrue(evidencia_drive.sincronizar_evidencia(servicio_id))
+            self.assertEqual(guardados["drive1"]["name"], "1294255")
+            self.assertEqual(len(guardados), 8)
+        with self.sessions() as session:
+            fotos = session.query(db.FotoEvidencia).filter_by(servicio_id=servicio_id).all()
+            self.assertEqual(len(fotos), 6)
+            self.assertTrue(all(foto.contenido is None for foto in fotos))
+
+    def test_cancelar_ticket_pendiente_conserva_registro_y_permite_eliminar(self):
+        solicitud = self.registrar()
+        anterior = db.obtener_tickets()[0]
+        token = anterior["token"]
+        ruta = f"/admin/tickets/{solicitud}/cancelar"
+        self.assertEqual(self.client.post(ruta, follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_tickets()[0]["estado"], "PENDIENTE")
+        self.autenticar()
+        self.assertEqual(self.client.post(ruta, follow_redirects=False).status_code, 303)
+        cancelado = db.obtener_tickets()[0]
+        self.assertEqual(cancelado["estado"], "CANCELADO")
+        for campo in ("id", "numero", "sap", "equipo", "descripcion", "token"):
+            self.assertEqual(cancelado[campo], anterior[campo])
+        self.assertEqual(self.client.get(f"/s/{token}").status_code, 403)
+        with self.assertRaises(ValueError):
+            self.servicio()
+        self.assertEqual(self.client.post(f"/admin/tickets/{solicitud}/renovar-enlace").status_code, 400)
+        pagina = self.client.get("/admin/tickets?filtro=cancelados")
+        self.assertEqual(len(pagina.context["tickets_visibles"]), 1)
+        self.assertIn(f'/admin/tickets/{solicitud}/eliminar', pagina.text)
+        self.assertNotIn('>Cancelar ticket<', pagina.text)
+        self.assertEqual(self.client.get("/admin/tickets?filtro=pendientes").context["pendientes"], 0)
+        db.editar_ticket(solicitud, **self.datos())
+        self.assertEqual(db.obtener_tickets()[0]["estado"], "CANCELADO")
+        self.assertEqual(db.obtener_tickets_para_excel()[0]["estado"], "CANCELADO")
+        self.assertEqual(self.client.post(f"/admin/tickets/{solicitud}/eliminar", follow_redirects=False).status_code, 303)
+        self.assertEqual(db.obtener_tickets(), [])
+
+    def test_archivos_video_y_ticket_firmado_obligatorio(self):
+        from io import BytesIO
+        from types import SimpleNamespace
+        from evidencia_drive import leer_adjuntos
+        def subido(contenido):
+            return SimpleNamespace(file=BytesIO(contenido))
+        png = cuatro_fotos()[0][1][1]
+        video = b'\x00\x00\x00\x18ftypisom' + b'\x00' * 24
+        evidencias, firmadas = leer_adjuntos(
+            [subido(png) for _ in range(3)] + [subido(video)], [subido(png), subido(png)])
+        self.assertEqual(evidencias[-1][0], 'mp4')
+        self.assertEqual(len(firmadas), 2)
+        with self.assertRaisesRegex(ValueError, 'firmado'):
+            leer_adjuntos([subido(png) for _ in range(4)], [])
+        with self.assertRaisesRegex(ValueError, 'fotografía'):
+            leer_adjuntos([subido(png) for _ in range(4)], [subido(video)])
+
+    def test_directorio_mensual_reintenta_mismo_id(self):
+        from unittest.mock import MagicMock
+        from evidencia_drive import obtener_directorio
+        archivos = MagicMock()
+        archivos.list.return_value.execute.return_value = {'files': []}
+        archivos.generateIds.return_value.execute.return_value = {'ids': ['mes-nuevo']}
+        archivos.create.return_value.execute.side_effect = [OSError('timeout simulado'), {'id': 'mes-nuevo'}]
+        with self.assertRaises(OSError):
+            obtener_directorio(archivos, 'principal', 'DICIEMBRE')
+        self.assertEqual(obtener_directorio(archivos, 'principal', 'DICIEMBRE'), 'mes-nuevo')
+        self.assertEqual(archivos.generateIds.call_count, 1)
+        self.assertEqual([c.kwargs['body']['id'] for c in archivos.create.call_args_list], ['mes-nuevo', 'mes-nuevo'])
+
+    def test_cancelar_ticket_realizado_se_rechaza(self):
+        solicitud = self.registrar()
+        self.servicio()
+        self.autenticar()
+        self.assertEqual(self.client.post(f"/admin/tickets/{solicitud}/cancelar").status_code, 400)
+        self.assertEqual(db.obtener_tickets()[0]["estado"], "REALIZADO")
 
     def test_actualizar_base_existente_conserva_servicios(self):
         antigua = create_engine("sqlite://")

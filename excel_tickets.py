@@ -8,7 +8,7 @@ from openpyxl.utils import get_column_letter
 
 from database.database import obtener_tickets_para_excel
 
-NOMBRE_ARCHIVO = "Software V2.xlsx"
+NOMBRE_ARCHIVO = "Software V2.1.xlsx"
 COLUMNAS = [
     ("id", "Solicitud"), ("numero", "Ticket"), ("estado", "Estado"),
     ("precio", "Precio"), ("estado_precio", "Estado del precio"),
@@ -45,7 +45,7 @@ def generar_excel_tickets():
     for ticket in obtener_tickets_para_excel():
         valores = dict(ticket, estado_precio="Falta precio" if ticket.get("precio") is None else "Con precio")
         fila = hoja.max_row + 1
-        color = "C6EFCE" if ticket["estado"] == "REALIZADO" else "FCE4D6"
+        color = {"REALIZADO": "C6EFCE", "CANCELADO": "E7E6E6"}.get(ticket["estado"], "FCE4D6")
         for columna, (campo, _) in enumerate(COLUMNAS, 1):
             valor = valores.get(campo)
             if valor is None or (isinstance(valor, str) and not valor.strip()):

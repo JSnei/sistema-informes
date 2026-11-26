@@ -7,6 +7,7 @@ from sqlalchemy import (
     create_engine,
     Column,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Boolean,
@@ -247,6 +248,12 @@ class Ticket(Base):
     fecha_creacion = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class CancelacionTicket(Base):
+    __tablename__ = "cancelaciones_ticket"
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), primary_key=True)
+    fecha = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class TicketEnlace(Base):
     """Vincula solicitudes y enlaces sin modificar las tablas existentes."""
     __tablename__ = "tickets_enlaces"
@@ -380,6 +387,16 @@ def crear_base_datos():
         if "telefono_tecnico" not in columnas:
             condicional = "IF NOT EXISTS " if conexion.dialect.name == "postgresql" else ""
             conexion.execute(text(f"ALTER TABLE servicios ADD COLUMN {condicional}telefono_tecnico VARCHAR(30)"))
+        nuevas_columnas = {
+            "carpetas_evidencia": {"carpeta_padre_id": "VARCHAR(150)"},
+            "fotos_evidencia": {"tipo": "VARCHAR(20) NOT NULL DEFAULT 'EVIDENCIA'", "nombre_drive": "VARCHAR(100)"},
+        }
+        for tabla, definiciones in nuevas_columnas.items():
+            existentes = {c["name"] for c in inspect(conexion).get_columns(tabla)}
+            for nombre, definicion in definiciones.items():
+                if nombre not in existentes:
+                    condicional = "IF NOT EXISTS " if conexion.dialect.name == "postgresql" else ""
+                    conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {condicional}{nombre} {definicion}"))
 
 
 # ==========================================================
@@ -999,6 +1016,31 @@ def cancelar_enlace_externo(id_enlace):
         return True
 
 
+class CarpetaEvidencia(Base):
+    __tablename__ = "carpetas_evidencia"
+    servicio_id = Column(Integer, ForeignKey("servicios.id", ondelete="CASCADE"), primary_key=True)
+    carpeta_id = Column(String(150), nullable=True)
+    carpeta_padre_id = Column(String(150), nullable=True)
+    sincronizada = Column(Boolean, nullable=False, default=False)
+
+
+class FotoEvidencia(Base):
+    __tablename__ = "fotos_evidencia"
+    servicio_id = Column(Integer, ForeignKey("carpetas_evidencia.servicio_id", ondelete="CASCADE"), primary_key=True)
+    posicion = Column(Integer, primary_key=True)
+    formato = Column(String(10), nullable=False)
+    contenido = Column(LargeBinary, nullable=True)
+    archivo_id = Column(String(150), nullable=True)
+    tipo = Column(String(20), nullable=False, default="EVIDENCIA", server_default="EVIDENCIA")
+    nombre_drive = Column(String(100), nullable=True)
+
+
+class DirectorioDrive(Base):
+    __tablename__ = "directorios_drive"
+    clave = Column(String(64), primary_key=True)
+    carpeta_id = Column(String(150), nullable=False)
+
+
 def crear_servicio_externo(
         
     token,
@@ -1016,7 +1058,9 @@ def crear_servicio_externo(
     repuestos_suministrados,
     tipo_registro="REAL",
     ticket_solicitud_id=None,
-    telefono_tecnico=""
+    telefono_tecnico="",
+    fotos=(),
+    fotos_firmadas=()
 ):
     validar_datos_informe(**locals())
     telefono_tecnico = telefono_tecnico.strip()
@@ -1152,6 +1196,14 @@ def crear_servicio_externo(
 
         db.add(servicio)
         db.flush()
+        if fotos or fotos_firmadas:
+            db.add(CarpetaEvidencia(servicio_id=servicio.id))
+            db.flush()
+            adjuntos = [("EVIDENCIA", archivo) for archivo in fotos]
+            adjuntos.extend(("FIRMADO", archivo) for archivo in fotos_firmadas)
+            for posicion, (tipo, (formato, contenido)) in enumerate(adjuntos, 1):
+                db.add(FotoEvidencia(servicio_id=servicio.id, posicion=posicion,
+                                     formato=formato, contenido=contenido, tipo=tipo))
         if tipo_registro == "REAL":
             ticket_registrado.servicio_id = servicio.id
 
@@ -1525,6 +1577,8 @@ def validar_ticket_servicio(db, ticket, tienda_id):
         raise ValueError("El ticket no está registrado. Solicita su registro a la oficina.")
     if ticket.tienda_id != tienda_id:
         raise ValueError("El ticket pertenece a otra tienda.")
+    if db.get(CancelacionTicket, ticket.id):
+        raise ValueError("Este ticket está cancelado.")
     servicio = db.get(Servicio, ticket.servicio_id) if ticket.servicio_id else None
     if (servicio and servicio.estado != "ANULADO") or (
         ticket.numero and servicio_real_ticket(db, ticket.numero)
@@ -1639,6 +1693,8 @@ def obtener_tickets():
         por_numero = {normalizar_ticket(s.ticket): s for s in realizados}
         enlaces = {v.ticket_id: e for v, e in db.query(TicketEnlace, EnlaceExterno).join(
             EnlaceExterno, TicketEnlace.enlace_id == EnlaceExterno.id).all()}
+        evidencias = {e.servicio_id: e for e in db.query(CarpetaEvidencia).all()}
+        cancelados = {c.ticket_id for c in db.query(CancelacionTicket).all()}
         resultado = []
         for ticket, tienda in db.query(Ticket, Tienda).join(
             Tienda, Ticket.tienda_id == Tienda.id
@@ -1646,6 +1702,12 @@ def obtener_tickets():
             servicio = db.get(Servicio, ticket.servicio_id) if ticket.servicio_id else por_numero.get(ticket.numero)
             if servicio and servicio.estado == "ANULADO":
                 servicio = None
+            evidencia = evidencias.get(servicio.id) if servicio else None
+            estado = "PENDIENTE"
+            if servicio:
+                estado = "REALIZADO"
+            elif ticket.id in cancelados:
+                estado = "CANCELADO"
             resultado.append({
                 "precio": ticket.precio, "id": ticket.id, "numero": ticket.numero or "000", "equipo": ticket.equipo,
                 "prioridad": ticket.prioridad, "fecha_reporte": ticket.fecha_reporte,
@@ -1655,12 +1717,14 @@ def obtener_tickets():
                 "descripcion": ticket.descripcion, "sap": tienda.sap,
                 "tienda": tienda.nombre, "tipo_tienda": tienda.tipo,
                 "fecha_creacion": ticket.fecha_creacion,
-                "estado": "REALIZADO" if servicio else "PENDIENTE",
+                "estado": estado,
                 "estado_ticket": "ASIGNADO" if ticket.numero else "FALTANTE POR NÚMERO DE TICKET",
                 "fecha_realizado": servicio.fecha_registro if servicio else None,
                 "tecnico": servicio.nombre_tecnico if servicio else None,
                 "telefono_tecnico": servicio.telefono_tecnico if servicio else None,
                 "servicio_id": servicio.id if servicio else None,
+                "evidencia_pendiente": bool(evidencia and not evidencia.sincronizada),
+                "carpeta_evidencia": evidencia.carpeta_id if evidencia and evidencia.sincronizada else None,
                 "token": enlaces[ticket.id].token if ticket.id in enlaces else None,
                 "estado_enlace": enlaces[ticket.id].estado if ticket.id in enlaces else None
             })
@@ -1743,6 +1807,7 @@ def asignar_numero_ticket(solicitud_id, numero):
         except IntegrityError:
             db.rollback()
             raise ValueError("Ese número de ticket ya está registrado.")
+        return ticket.servicio_id
 
 
 def obtener_solicitud_enlace(token):
@@ -1796,6 +1861,8 @@ def editar_ticket(solicitud_id, **datos):
         except IntegrityError:
             db.rollback()
             raise ValueError("Ya existe un ticket con ese número.")
+
+        return ticket.servicio_id
 
 
 def generar_enlace_ticket(solicitud_id):
@@ -1852,6 +1919,24 @@ def actualizar_precio_ticket(solicitud_id, precio):
         db.commit()
 
 
+def cancelar_ticket(solicitud_id):
+    with SessionLocal() as db:
+        vinculo = db.query(TicketEnlace).filter_by(ticket_id=solicitud_id).first()
+        enlace = None
+        if vinculo:
+            enlace = db.query(EnlaceExterno).filter_by(id=vinculo.enlace_id).with_for_update().first()
+        ticket = db.query(Ticket).filter_by(id=solicitud_id).with_for_update().first()
+        if ticket is None:
+            raise ValueError("La solicitud no existe.")
+        if db.get(CancelacionTicket, ticket.id):
+            return
+        validar_ticket_servicio(db, ticket, ticket.tienda_id)
+        db.add(CancelacionTicket(ticket_id=ticket.id))
+        if enlace:
+            enlace.estado = "CANCELADO"
+        db.commit()
+
+
 def eliminar_ticket(solicitud_id):
     with SessionLocal() as db:
         vinculo = db.query(TicketEnlace).filter_by(ticket_id=solicitud_id).first()
@@ -1864,6 +1949,10 @@ def eliminar_ticket(solicitud_id):
             raise ValueError("La solicitud no existe.")
         if vinculo:
             db.delete(vinculo)
+            db.flush()
+        cancelacion = db.get(CancelacionTicket, ticket.id)
+        if cancelacion:
+            db.delete(cancelacion)
             db.flush()
         db.delete(ticket)
         db.commit()

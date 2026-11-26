@@ -1,7 +1,8 @@
 import os   
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Request, Form
+from fastapi import BackgroundTasks, FastAPI, File, Request, Form, UploadFile
+from evidencia_drive import leer_adjuntos, sincronizar_evidencia
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -40,6 +41,7 @@ from database.database import (
     editar_ticket,
     generar_enlace_ticket,
     renovar_enlace_ticket,
+    cancelar_ticket,
     obtener_informe_ticket,
     editar_informe_ticket,
     actualizar_precio_ticket,
@@ -56,7 +58,7 @@ codigo_tecnicos = {}
 codigo_operadores = {}
 
 
-app = FastAPI()
+app = FastAPI(version="2.1")
 
 
 # ---------------------------------------------------------
@@ -953,6 +955,7 @@ def guardar_servicio_externo(
 
     request: Request,
     token: str,
+    tareas: BackgroundTasks,
 
     sap_tienda: str = Form(...),
 
@@ -974,10 +977,12 @@ def guardar_servicio_externo(
 
     suministro_repuestos: str = Form(...),
     repuestos_suministrados: str = Form(""),
-    ticket_solicitud_id: int | None = Form(None)
+    ticket_solicitud_id: int | None = Form(None),
+    fotos: list[UploadFile] = File(default=[]),
+    fotos_ticket: list[UploadFile] = File(default=[])
 ):
 
-    valores = {k: v for k, v in locals().items() if k not in ("request", "token")}
+    valores = {k: v for k, v in locals().items() if k not in ("request", "token", "tareas", "fotos", "fotos_ticket")}
 
     # ==========================================================
     # 1. VERIFICAR EL ENLACE
@@ -1035,6 +1040,7 @@ def guardar_servicio_externo(
 
     try:
 
+        evidencias, firmadas = leer_adjuntos(fotos, fotos_ticket)
         servicio_id = crear_servicio_externo(
             token=token,
             sap_tienda=sap_tienda,
@@ -1058,7 +1064,9 @@ def guardar_servicio_externo(
             repuestos_suministrados=repuestos_suministrados,
 
             tipo_registro=enlace.tipo_registro,
-            ticket_solicitud_id=ticket_solicitud_id
+            ticket_solicitud_id=ticket_solicitud_id,
+            fotos=evidencias,
+            fotos_firmadas=firmadas
         )
 
         # ======================================================
@@ -1067,7 +1075,8 @@ def guardar_servicio_externo(
         # PostgreSQL ya guardó el servicio.
         # Si Google Drive falla, el servicio NO se pierde.
 
-        sincronizar_excel_seguro()
+        tareas.add_task(sincronizar_evidencia, servicio_id)
+        tareas.add_task(sincronizar_excel_seguro)
 
         # ======================================================
         # 6. MOSTRAR CONFIRMACIÓN
@@ -1078,7 +1087,9 @@ def guardar_servicio_externo(
             name="externo/servicio_guardado.html",
             context={
                 "servicio_id": servicio_id,
-                "enlace_id": enlace.id
+                "enlace_id": enlace.id,
+                "fotos_recibidas": len(fotos),
+                "firmadas_recibidas": len(fotos_ticket)
             }
         )
 
@@ -1201,6 +1212,7 @@ def pagina_tickets(request, error=None, valores=None, status_code=200, editar_id
         "todos": ("Todas las solicitudes", lambda t: True),
         "pendientes": ("Solicitudes pendientes", lambda t: t["estado"] == "PENDIENTE"),
         "realizados": ("Servicios realizados", lambda t: t["estado"] == "REALIZADO"),
+        "cancelados": ("Solicitudes canceladas", lambda t: t["estado"] == "CANCELADO"),
         "sin-numero": ("Solicitudes sin número de ticket", lambda t: t["numero"] == "000"),
         "sin-precio": ("Solicitudes faltantes de precio", lambda t: t["precio"] is None),
     }
@@ -1215,6 +1227,7 @@ def pagina_tickets(request, error=None, valores=None, status_code=200, editar_id
                  "filtro_activo": filtro, "titulo_listado": titulo,
                  "pendientes": sum(t["estado"] == "PENDIENTE" for t in tickets),
                  "realizados": sum(t["estado"] == "REALIZADO" for t in tickets),
+                 "cancelados": sum(t["estado"] == "CANCELADO" for t in tickets),
                  "sin_numero": sum(t["numero"] == "000" for t in tickets)},
         status_code=status_code
     )
@@ -1252,11 +1265,13 @@ def crear_ticket_oficina(
 
 
 @app.post("/admin/tickets/{solicitud_id}/numero")
-def completar_numero_ticket(request: Request, solicitud_id: int, numero: str = Form(...)):
+def completar_numero_ticket(request: Request, solicitud_id: int, tareas: BackgroundTasks, numero: str = Form(...)):
     try:
-        asignar_numero_ticket(solicitud_id, numero)
+        servicio_id = asignar_numero_ticket(solicitud_id, numero)
     except ValueError as error:
         return pagina_tickets(request, str(error), status_code=400)
+    if servicio_id:
+        tareas.add_task(sincronizar_evidencia, servicio_id)
     sincronizar_excel_seguro()
     return RedirectResponse("/admin/tickets", status_code=303)
 
@@ -1291,16 +1306,18 @@ def pagina_editar_ticket(request: Request, solicitud_id: int):
 
 @app.post("/admin/tickets/{solicitud_id}/editar")
 def guardar_edicion_ticket(
-    request: Request, solicitud_id: int, numero: str = Form(...), sap_tienda: str = Form(...),
+    request: Request, solicitud_id: int, tareas: BackgroundTasks, numero: str = Form(...), sap_tienda: str = Form(...),
     prioridad: str = Form(...), fecha_reporte: str = Form(...), equipo: str = Form(...),
     descripcion: str = Form(...), contacto: str = Form(""), telefonos: str = Form(""),
     registrado_por: str = Form(""), coordinador: str = Form(""), codigo: str = Form("")
 ):
-    valores = {k: v for k, v in locals().items() if k not in ("request", "solicitud_id")}
+    valores = {k: v for k, v in locals().items() if k not in ("request", "solicitud_id", "tareas")}
     try:
-        editar_ticket(solicitud_id, **valores)
+        servicio_id = editar_ticket(solicitud_id, **valores)
     except ValueError as error:
         return pagina_tickets(request, str(error), valores, 400, editar_id=solicitud_id)
+    if servicio_id:
+        tareas.add_task(sincronizar_evidencia, servicio_id)
     sincronizar_excel_seguro()
     return RedirectResponse("/admin/tickets", status_code=303)
 
@@ -1365,6 +1382,16 @@ def guardar_precio_ticket(request: Request, solicitud_id: int, precio: str = For
     return RedirectResponse("/admin/tickets", status_code=303)
 
 
+@app.post("/admin/tickets/{solicitud_id}/cancelar")
+def cancelar_solicitud(request: Request, solicitud_id: int):
+    try:
+        cancelar_ticket(solicitud_id)
+    except ValueError as error:
+        return pagina_tickets(request, str(error), status_code=400)
+    sincronizar_excel_seguro()
+    return RedirectResponse(f"/admin/tickets#solicitud-{solicitud_id}", status_code=303)
+
+
 @app.post("/admin/tickets/{solicitud_id}/eliminar")
 def borrar_ticket(request: Request, solicitud_id: int):
     try:
@@ -1373,6 +1400,16 @@ def borrar_ticket(request: Request, solicitud_id: int):
         return pagina_tickets(request, str(error), status_code=400)
     sincronizar_excel_seguro()
     return RedirectResponse("/admin/tickets", status_code=303)
+
+
+@app.post("/admin/tickets/{solicitud_id}/evidencia")
+def reenviar_evidencia(request: Request, solicitud_id: int):
+    ticket = next((t for t in obtener_tickets() if t["id"] == solicitud_id), None)
+    if not ticket or not ticket["servicio_id"]:
+        return pagina_tickets(request, "La solicitud no tiene un servicio disponible.", status_code=404)
+    if not sincronizar_evidencia(ticket["servicio_id"]):
+        return pagina_tickets(request, "Drive no recibió las fotos. Se conservan guardadas para otro intento.", status_code=502)
+    return RedirectResponse(f"/admin/tickets#solicitud-{solicitud_id}", status_code=303)
 
 
 @app.get("/admin/tickets/excel")

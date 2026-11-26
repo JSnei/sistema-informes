@@ -16,6 +16,7 @@
         .solicitud { border:1px solid #ddd; border-radius:10px; padding:20px; margin:18px 0; }
         .solicitud[data-estado="REALIZADO"] { background:#e8f5e9; border-color:#66a875; }
         .solicitud[data-estado="PENDIENTE"] { background:#fff3e0; border-color:#e5a24b; }
+        .solicitud[data-estado="CANCELADO"] { background:#f1f1f1; border-color:#aaa; }
         .solicitud p { margin:8px 0; overflow-wrap:anywhere; }
         .descripcion-ticket { white-space:pre-wrap; }
         .sin-numero { color:#8a4b00; background:#fff3cd; padding:8px; border-radius:6px; }
@@ -27,12 +28,14 @@
 <body>
 <main class="contenedor"><div class="tarjeta">
     <div class="logo"><img src="/static/img/logo.png" alt="BS Electromecánica"></div>
+    <p class="footer">Software V2.1</p>
     <div class="bienvenida"><h1>Tickets y solicitudes</h1><p>Registra las solicitudes de la oficina y consulta su avance.</p></div>
     {% if error %}<div class="mensaje-error" role="alert">{{ error }}</div>{% endif %}
     <form class="resumen" action="/admin/tickets#listado-tickets" method="get" aria-label="Filtrar solicitudes">
         <button type="submit" name="filtro" value="todos" aria-pressed="{{ 'true' if filtro_activo == 'todos' else 'false' }}">Todos</button>
         <button type="submit" name="filtro" value="pendientes" aria-pressed="{{ 'true' if filtro_activo == 'pendientes' else 'false' }}"><strong>{{ pendientes }}</strong> pendientes</button>
         <button type="submit" name="filtro" value="realizados" aria-pressed="{{ 'true' if filtro_activo == 'realizados' else 'false' }}"><strong>{{ realizados }}</strong> realizados</button>
+        <button type="submit" name="filtro" value="cancelados" aria-pressed="{{ 'true' if filtro_activo == 'cancelados' else 'false' }}"><strong>{{ cancelados }}</strong> cancelados</button>
         <button type="submit" name="filtro" value="sin-numero" aria-pressed="{{ 'true' if filtro_activo == 'sin-numero' else 'false' }}"><strong>{{ sin_numero }}</strong> sin número de ticket</button>
         <button type="submit" name="filtro" value="sin-precio" aria-pressed="{{ 'true' if filtro_activo == 'sin-precio' else 'false' }}"><strong>{{ tickets | selectattr('precio', 'none') | list | length }}</strong> faltantes de precio</button>
     </form>
@@ -73,9 +76,9 @@
     </details>
     <hr style="margin:25px 0; border:0; border-top:1px solid #ddd;">
     <h2 id="listado-tickets">{{ titulo_listado }}</h2>
-    <a href="/admin/tickets/excel" class="boton">Descargar Software V2.xlsx</a>
+    <a href="/admin/tickets/excel" class="boton">Descargar Software V2.1.xlsx</a>
     <div class="filtros">
-        <input id="buscar-ticket" type="search" placeholder="Buscar por número, SAP, tienda o equipo" aria-label="Buscar solicitudes">
+        <input id="buscar-ticket" type="search" placeholder="Busca por numero de SAP de la tienda" aria-label="Busca por numero de SAP de la tienda">
     </div>
     <p id="sin-resultados" role="status" aria-live="polite" hidden>No hay solicitudes con esos filtros.</p>
     {% for ticket in tickets_visibles %}
@@ -99,6 +102,14 @@
         {% if ticket.servicio_id %}
         <a href="/admin/tickets/{{ ticket.id }}/informe/editar" class="boton">Editar informe del técnico</a>
         {% endif %}
+        {% if ticket.carpeta_evidencia %}
+        <a class="boton" href="https://drive.google.com/drive/folders/{{ ticket.carpeta_evidencia }}" target="_blank" rel="noopener">Abrir evidencias en Drive</a>
+        {% elif ticket.evidencia_pendiente %}
+        <p>Las fotos están guardadas y pendientes de sincronizar con Drive.</p>
+        <form action="/admin/tickets/{{ ticket.id }}/evidencia" method="post">
+            <button class="boton" type="submit">Reintentar sincronización de fotos</button>
+        </form>
+        {% endif %}
         {% if ticket.token %}
             {% if ticket.estado_enlace == 'PENDIENTE' and ticket.estado == 'PENDIENTE' %}
             <label for="enlace-{{ ticket.id }}">Enlace del técnico · un solo uso · sin vencimiento</label>
@@ -109,20 +120,19 @@
         {% elif ticket.estado == 'PENDIENTE' %}
             <form action="/admin/tickets/{{ ticket.id }}/enlace" method="post"><button class="boton" type="submit">Generar enlace para esta solicitud</button></form>
         {% endif %}
-        {% if ticket.token and ticket.estado == 'PENDIENTE' and ticket.estado_enlace != 'UTILIZADO' %}
-        <form action="/admin/tickets/{{ ticket.id }}/renovar-enlace" method="post">
-            <button class="boton" type="submit">Generar nuevo enlace</button>
-            <small>Al generar uno nuevo, el enlace anterior dejará de funcionar.</small>
-        </form>
-        {% endif %}
         {% if ticket.numero == '000' %}<p class="sin-numero"><strong>Faltante por número de ticket</strong></p>{% endif %}
         {% if ticket.precio is not none %}
         <p><strong>Precio:</strong> <span data-precio-texto="{{ ticket.precio }}">{{ "{:,.2f}".format(ticket.precio) }}</span></p>
         {% endif %}
+        {% if ticket.estado == 'PENDIENTE' %}
+        <form action="/admin/tickets/{{ ticket.id }}/cancelar" method="post">
+            <button class="boton" type="submit">Cancelar ticket</button>
+        </form>
+        {% endif %}
         <form action="/admin/tickets/{{ ticket.id }}/eliminar" method="post" class="eliminar-ticket">
             <button class="boton" type="submit">Eliminar ticket</button>
         </form>
-        <p><strong>Servicio:</strong> {{ 'Realizado' if ticket.estado == 'REALIZADO' else 'Pendiente' }} · <strong>Prioridad:</strong> {{ ticket.prioridad }}</p>
+        <p><strong>Servicio:</strong> {{ ticket.estado.capitalize() }} · <strong>Prioridad:</strong> {{ ticket.prioridad }}</p>
         <p><strong>Tienda:</strong> {{ ticket.tienda }} — {{ ticket.sap }}</p>
         <p><strong>Tipo de tienda:</strong> {{ ticket.tipo_tienda or 'No registrado' }}</p>
         <p><strong>Equipo:</strong> {{ ticket.equipo }}</p>

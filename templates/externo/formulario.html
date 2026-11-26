@@ -94,6 +94,45 @@
             display: none;
         }
 
+        .zona-archivos {
+            border: 2px dashed #aaa;
+            border-radius: 10px;
+            padding: 18px;
+        }
+
+        .zona-archivos.arrastrando {
+            border-color: #247347;
+            background: #edf8f0;
+        }
+
+        .lista-adjuntos {
+            padding-left: 20px;
+            margin-top: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            overflow-wrap: anywhere;
+        }
+
+        .lista-adjuntos li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 6px 0;
+        }
+
+        .lista-adjuntos span { min-width: 0; }
+
+        .lista-adjuntos button {
+            flex-shrink: 0;
+            border: 1px solid #b42318;
+            border-radius: 6px;
+            padding: 7px 10px;
+            background: #fff;
+            color: #b42318;
+            cursor: pointer;
+        }
+
     </style>
 
 </head>
@@ -208,6 +247,7 @@
 
             <form
                 action="/s/{{ token }}/guardar-servicio"
+                enctype="multipart/form-data"
                 method="post"
                 class="formulario-servicio"
                 id="formulario-servicio"
@@ -538,6 +578,30 @@
                 <!-- GUARDAR -->
                 <!-- =============================== -->
 
+                <section class="seccion-formulario">
+                    <h2>Evidencias del servicio</h2>
+                    <div class="campo zona-archivos" data-entrada="fotos-evidencia">
+                        <label for="fotos-evidencia">Seleccionar fotos o videos *</label>
+                        <p>Arrastra y suelta los archivos aquí o selecciónalos.</p>
+                        <p id="ayuda-fotos">Mínimo cuatro evidencias. Fotos JPG, PNG o WebP de hasta 10 MB; videos MP4, MOV o WebM de hasta 50 MB.</p>
+                        <input id="fotos-evidencia" name="fotos" type="file"
+                               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" aria-describedby="ayuda-fotos estado-fotos" multiple required>
+                        <p id="estado-fotos" role="status" aria-live="polite"></p>
+                        <ul class="lista-adjuntos" hidden></ul>
+                    </div>
+                    <h2>Ticket firmado</h2>
+                    <div class="campo zona-archivos" data-entrada="fotos-ticket">
+                        <label for="fotos-ticket">Seleccionar fotos del ticket firmado *</label>
+                        <p>Arrastra y suelta las fotos aquí o selecciónalas.</p>
+                        <p id="ayuda-ticket">Adjunta una o varias fotografías legibles del ticket firmado. Máximo 10 MB por foto.</p>
+                        <input id="fotos-ticket" name="fotos_ticket" type="file" accept="image/jpeg,image/png,image/webp"
+                               aria-describedby="ayuda-ticket estado-ticket" multiple required>
+                        <p id="estado-ticket" role="status" aria-live="polite"></p>
+                        <ul class="lista-adjuntos" hidden></ul>
+                    </div>
+                    <p>Máximo 100 MB entre todos los archivos del servicio y del ticket firmado.</p>
+                </section>
+
                 <button
                     type="submit"
                     class="boton"
@@ -558,7 +622,7 @@
 
 
     <script id="valores-servicio" type="application/json">{{ valores | default({}) | tojson }}</script>
-    <script src="/static/js/ticket_servicio.js"></script>
+    <script src="/static/js/ticket_servicio.js?v=quitar-archivos"></script>
 
     <!-- =============================== -->
     <!-- JAVASCRIPT -->
