@@ -115,19 +115,33 @@ def obtener_directorio(archivos, padre, nombre, periodo=None):
     return carpeta_id
 
 
+def archivo_en_destino(archivos, datos):
+    try:
+        existente = archivos.get(fileId=datos["id"], supportsAllDrives=True,
+                                 fields="id,trashed,parents,mimeType").execute()
+    except HttpError as error:
+        if error.resp.status == 404:
+            return False
+        raise
+    if existente.get("trashed") or datos["parents"][0] not in existente.get("parents", []):
+        raise ValueError("El archivo existente no está en su ubicación esperada.")
+    if datos.get("mimeType") and existente.get("mimeType") != datos["mimeType"]:
+        raise ValueError("El elemento existente no es una carpeta válida.")
+    return True
+
+
 def crear_en_drive(archivos, datos, media=None):
+    # Las carpetas existentes pueden tener IDs que Drive no admite en create().
+    if archivo_en_destino(archivos, datos):
+        return
     opciones = {"body": datos, "supportsAllDrives": True, "fields": "id"}
     if media is not None:
         opciones["media_body"] = media
     try:
         archivos.create(**opciones).execute()
     except HttpError as error:
-        if error.resp.status != 409:
+        if error.resp.status != 409 or not archivo_en_destino(archivos, datos):
             raise
-        existente = archivos.get(fileId=datos["id"], supportsAllDrives=True,
-                                 fields="id,trashed,parents").execute()
-        if existente.get("trashed") or datos["parents"][0] not in existente.get("parents", []):
-            raise ValueError("El archivo existente no está en su ubicación esperada.")
 
 
 def sincronizar_evidencia(servicio_id):

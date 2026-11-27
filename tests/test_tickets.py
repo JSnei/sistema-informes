@@ -414,7 +414,7 @@ class TicketsTest(unittest.TestCase):
         def crear(body, **opciones):
             def ejecutar():
                 if body["id"] in guardados:
-                    raise HttpError(Response({"status": "409"}), b"{}")
+                    raise HttpError(Response({"status": "400"}), b'{"error":{"message":"The provided file ID is not usable."}}')
                 if body["name"] == "2.png" and fallar:
                     raise OSError("Carga interrumpida")
                 if body['name'] == 'F1.pdf':
@@ -425,11 +425,18 @@ class TicketsTest(unittest.TestCase):
                 return {"id": body["id"]}
             return SimpleNamespace(execute=ejecutar)
 
+        def obtener(fileId, **opciones):
+            def ejecutar():
+                if fileId not in guardados:
+                    raise HttpError(Response({"status": "404"}), b'{}')
+                return guardados[fileId]
+            return SimpleNamespace(execute=ejecutar)
+
         archivos = SimpleNamespace(
             generateIds=generar_ids,
             list=listar,
             create=crear,
-            get=lambda fileId, **kw: SimpleNamespace(execute=lambda: guardados[fileId]),
+            get=obtener,
             update=lambda fileId, body, **kw: SimpleNamespace(execute=lambda: guardados[fileId].update(body)),
         )
         with patch.object(evidencia_drive, "obtener_drive", return_value=SimpleNamespace(files=lambda: archivos)), \
@@ -534,10 +541,53 @@ class TicketsTest(unittest.TestCase):
                             self.assertEqual(archivos[0].formato, 'pdf')
                             self.assertIn('1 archivos del ticket firmado', respuesta.text)
 
-    def test_directorio_mensual_reintenta_mismo_id(self):
+    def test_carpeta_existente_se_reutiliza_sin_intentar_crearla(self):
         from unittest.mock import MagicMock
         from evidencia_drive import obtener_directorio
         archivos = MagicMock()
+        archivos.list.return_value.execute.return_value = {'files':[{'id':'id-carpeta-existente', 'name':'2026'}]}
+        archivos.get.return_value.execute.return_value = {
+            'id':'id-carpeta-existente', 'parents':['principal'],
+            'mimeType':'application/vnd.google-apps.folder', 'trashed':False}
+        self.assertEqual(obtener_directorio(archivos, 'principal', '2026'), 'id-carpeta-existente')
+        self.assertEqual(obtener_directorio(archivos, 'principal', '2026'), 'id-carpeta-existente')
+        archivos.create.assert_not_called()
+        archivos.generateIds.assert_not_called()
+        self.assertEqual(archivos.list.call_count, 1)
+
+    def test_creacion_simultanea_reutiliza_solo_archivo_en_destino(self):
+        from unittest.mock import MagicMock
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        from evidencia_drive import crear_en_drive
+        datos = {'id':'nuevo', 'parents':['principal'], 'name':'2026',
+                 'mimeType':'application/vnd.google-apps.folder'}
+        archivos = MagicMock()
+        archivos.get.return_value.execute.side_effect = [
+            HttpError(Response({'status':'404'}), b'{}'),
+            {'id':'nuevo', 'parents':['principal'], 'mimeType':datos['mimeType']},
+        ]
+        archivos.create.return_value.execute.side_effect = HttpError(Response({'status':'409'}), b'{}')
+        crear_en_drive(archivos, datos)
+        self.assertEqual(archivos.create.call_count, 1)
+        for existente in [
+            {'parents':['principal'], 'mimeType':datos['mimeType'], 'trashed':True},
+            {'parents':['otra-carpeta'], 'mimeType':datos['mimeType']},
+            {'parents':['principal'], 'mimeType':'application/pdf'},
+        ]:
+            archivos = MagicMock()
+            archivos.get.return_value.execute.return_value = existente
+            with self.assertRaises(ValueError):
+                crear_en_drive(archivos, datos)
+            archivos.create.assert_not_called()
+
+    def test_directorio_mensual_reintenta_mismo_id(self):
+        from unittest.mock import MagicMock
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
+        from evidencia_drive import obtener_directorio
+        archivos = MagicMock()
+        archivos.get.return_value.execute.side_effect = HttpError(Response({'status':'404'}), b'{}')
         archivos.list.return_value.execute.return_value = {'files': []}
         archivos.generateIds.return_value.execute.return_value = {'ids': ['mes-nuevo']}
         archivos.create.return_value.execute.side_effect = [OSError('timeout simulado'), {'id': 'mes-nuevo'}]
@@ -589,8 +639,11 @@ class TicketsTest(unittest.TestCase):
 
     def test_carpetas_mismo_mes_en_distintos_anos(self):
         from unittest.mock import MagicMock
+        from googleapiclient.errors import HttpError
+        from httplib2 import Response
         from evidencia_drive import obtener_directorio
         archivos = MagicMock()
+        archivos.get.return_value.execute.side_effect = HttpError(Response({'status':'404'}), b'{}')
         archivos.list.return_value.execute.return_value = {'files': []}
         archivos.generateIds.return_value.execute.side_effect = [{'ids':['noviembre-2026']}, {'ids':['noviembre-2027']}]
         self.assertEqual(obtener_directorio(archivos, 'principal', 'NOVIEMBRE', periodo=2026), 'noviembre-2026')
