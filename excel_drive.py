@@ -6,6 +6,7 @@ from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
 
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials as UserCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -25,6 +26,9 @@ GOOGLE_CREDENTIALS_FILE = os.getenv(
 GOOGLE_DRIVE_FOLDER_ID = os.getenv(
     "GOOGLE_DRIVE_FOLDER_ID"
 )
+
+GOOGLE_DRIVE_OAUTH_TOKEN = os.getenv("GOOGLE_DRIVE_OAUTH_TOKEN")
+DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 NOMBRE_ARCHIVO = "Servicios.xlsx"
 
@@ -146,14 +150,14 @@ def obtener_drive():
             "GOOGLE_DRIVE_FOLDER_ID no está configurado."
         )
 
-    credenciales = (
-        service_account.Credentials.from_service_account_file(
-            GOOGLE_CREDENTIALS_FILE,
-            scopes=[
-                "https://www.googleapis.com/auth/drive"
-            ]
-        )
-    )
+    if GOOGLE_DRIVE_OAUTH_TOKEN:
+        credenciales = UserCredentials.from_authorized_user_file(
+            GOOGLE_DRIVE_OAUTH_TOKEN, scopes=DRIVE_SCOPES)
+        if not credenciales.refresh_token:
+            raise RuntimeError("Autoriza nuevamente Google Drive para permitir el acceso sin sesión abierta.")
+    else:
+        credenciales = service_account.Credentials.from_service_account_file(
+            GOOGLE_CREDENTIALS_FILE, scopes=DRIVE_SCOPES)
 
     return build(
         "drive",

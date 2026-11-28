@@ -29,8 +29,9 @@ def main():
     for clave in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD", "ADMIN_EMAIL",
                   "OPERADOR_400_EMAIL", "RESEND_API_KEY", "GOOGLE_DRIVE_FOLDER_ID"):
         comprobar(clave + " configurada", bool(os.getenv(clave)))
-    credenciales = Path(os.getenv("GOOGLE_DRIVE_CREDENTIALS", "/home/bsadmin/google-drive-credentials.json"))
-    comprobar("Archivo de credenciales de Google Drive accesible", credenciales.is_file())
+    token = os.getenv("GOOGLE_DRIVE_OAUTH_TOKEN")
+    credenciales = Path(token or os.getenv("GOOGLE_DRIVE_CREDENTIALS", "/home/bsadmin/google-drive-credentials.json"))
+    comprobar("Archivo de autorización de Google Drive accesible", credenciales.is_file())
     if args.database:
         from sqlalchemy import create_engine, inspect, text
         from database.database import Base, url

@@ -17,3 +17,7 @@ Thumbs.db
 Tiendas_Unificadas_R7_R8_CORREGIDO.xlsx
 
 bs-sistema-informes-347c67995ed5.json
+
+.secrets/
+client_secret*.json
+google-drive-token.json
