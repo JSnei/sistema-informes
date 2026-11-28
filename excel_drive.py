@@ -11,7 +11,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 from database.database import obtener_servicios_para_excel
-from excel_tickets import generar_excel_tickets, NOMBRE_ARCHIVO as NOMBRE_TICKETS
 
 
 # ==========================================================
@@ -236,15 +235,10 @@ def sincronizar_excel_drive(nombre_archivo=NOMBRE_ARCHIVO, generador=generar_exc
 # ==========================================================
 
 def sincronizar_excel_seguro():
-    correcto = True
-    for nombre, generador in (
-        (NOMBRE_ARCHIVO, generar_excel_servicios),
-        (NOMBRE_TICKETS, generar_excel_tickets),
-    ):
-        try:
-            resultado = sincronizar_excel_drive(nombre, generador)
-            print(f"Excel Drive sincronizado: {nombre}: {resultado['accion']}")
-        except Exception as error:
-            print(f"ADVERTENCIA: No se pudo sincronizar {nombre}: {error}")
-            correcto = False
-    return correcto
+    try:
+        resultado = sincronizar_excel_drive(NOMBRE_ARCHIVO, generar_excel_servicios)
+        print(f"Excel Drive sincronizado: {NOMBRE_ARCHIVO}: {resultado['accion']}")
+        return True
+    except Exception as error:
+        print(f"ADVERTENCIA: No se pudo sincronizar {NOMBRE_ARCHIVO}: {error}")
+        return False
