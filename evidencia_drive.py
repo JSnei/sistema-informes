@@ -1,4 +1,5 @@
 import logging
+import json
 import mimetypes
 import os
 import re
@@ -110,9 +111,12 @@ def obtener_directorio(archivos, padre, nombre, periodo=None):
                 sesion.rollback()
             registro = sesion.get(db.DirectorioDrive, clave)
         carpeta_id = registro.carpeta_id
-    crear_en_drive(archivos, {"id": carpeta_id, "name": nombre, "parents": [padre],
-                              "mimeType": "application/vnd.google-apps.folder"})
-    return carpeta_id
+    def guardar_id(nuevo_id):
+        with db.SessionLocal() as sesion:
+            sesion.get(db.DirectorioDrive, clave).carpeta_id = nuevo_id
+            sesion.commit()
+    return crear_en_drive(archivos, {"id": carpeta_id, "name": nombre, "parents": [padre],
+                              "mimeType": "application/vnd.google-apps.folder"}, al_reemplazar_id=guardar_id)
 
 
 def archivo_en_destino(archivos, datos):
@@ -130,18 +134,30 @@ def archivo_en_destino(archivos, datos):
     return True
 
 
-def crear_en_drive(archivos, datos, media=None):
+def crear_en_drive(archivos, datos, media=None, al_reemplazar_id=None):
     # Las carpetas existentes pueden tener IDs que Drive no admite en create().
     if archivo_en_destino(archivos, datos):
-        return
+        return datos["id"]
     opciones = {"body": datos, "supportsAllDrives": True, "fields": "id"}
     if media is not None:
         opciones["media_body"] = media
     try:
         archivos.create(**opciones).execute()
     except HttpError as error:
+        try:
+            razones = json.loads(error.content).get("error", {}).get("errors", [])
+        except (ValueError, TypeError):
+            razones = []
+        if (error.resp.status == 400 and al_reemplazar_id is not None and
+                any(r.get("reason") == "fileIdNotUsable" for r in razones)):
+            # Un ID reservado con otra cuenta puede no ser utilizable con OAuth.
+            # Persistir antes de subir permite reintentar sin duplicar archivos.
+            nuevo_id = archivos.generateIds(count=1, space="drive").execute()["ids"][0]
+            al_reemplazar_id(nuevo_id)
+            return crear_en_drive(archivos, dict(datos, id=nuevo_id), media)
         if error.resp.status != 409 or not archivo_en_destino(archivos, datos):
             raise
+    return datos["id"]
 
 
 def sincronizar_evidencia(servicio_id):
@@ -201,15 +217,23 @@ def sincronizar_evidencia(servicio_id):
                 return True
 
             padre = carpeta.carpeta_padre_id or os.getenv("GOOGLE_DRIVE_EVIDENCE_FOLDER_ID") or GOOGLE_DRIVE_FOLDER_ID
+            def guardar_carpeta_id(nuevo_id):
+                anterior = carpeta.carpeta_id
+                carpeta.carpeta_id = nuevo_id
+                sesion.query(db.DirectorioDrive).filter_by(carpeta_id=anterior).update({"carpeta_id": nuevo_id})
+                sesion.commit()
             crear_en_drive(archivos, {"id": carpeta.carpeta_id, "name": nombre, "parents": [padre],
-                                      "mimeType": "application/vnd.google-apps.folder"})
+                                      "mimeType": "application/vnd.google-apps.folder"}, al_reemplazar_id=guardar_carpeta_id)
             archivos.update(fileId=carpeta.carpeta_id, body={"name": nombre}, supportsAllDrives=True).execute()
             fotos = sesion.query(db.FotoEvidencia).filter_by(servicio_id=servicio_id).order_by(db.FotoEvidencia.posicion).all()
             for foto in fotos:
                 tipo_mime = FORMATOS.get(foto.formato) or mimetypes.guess_type(f"archivo.{foto.formato}")[0] or "application/octet-stream"
                 media = MediaIoBaseUpload(BytesIO(foto.contenido), mimetype=tipo_mime)
+                def guardar_archivo_id(nuevo_id):
+                    foto.archivo_id = nuevo_id
+                    sesion.commit()
                 crear_en_drive(archivos, {"id": foto.archivo_id, "name": foto.nombre_drive or f"Evidencia {foto.posicion}.{foto.formato}",
-                                          "parents": [carpeta.carpeta_id]}, media)
+                                          "parents": [carpeta.carpeta_id]}, media, al_reemplazar_id=guardar_archivo_id)
                 foto.contenido = None
             carpeta.sincronizada = True
             sesion.commit()
